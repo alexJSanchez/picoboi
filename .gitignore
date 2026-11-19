@@ -1,0 +1,25 @@
+# ROMs, saves, boot ROMs, flash images: never commit (see CLAUDE.md hard rules)
+*.gb
+*.gbc
+*.sav
+*.uf2
+*.bin
+*.elf
+*.map
+*.dis
+*.hex
+bootrom*
+dmg_boot*
+
+# Build output
+build/
+build-host/
+
+# Downloaded test ROMs
+tests/roms/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
