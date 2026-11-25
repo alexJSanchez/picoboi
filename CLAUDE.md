@@ -31,7 +31,9 @@ cmake --build build -j
 # build picotool/pioasm itself; add -Dpicotool_DIR=<prebuilt dir> -Dpioasm_DIR=<prebuilt dir>
 # (see docs/DECISIONS.md, 2026-11-25).
 # host tests
-cmake -S tests -B build-host && cmake --build build-host && ctest --test-dir build-host
+sh tools/fetch_test_roms.sh   # downloads free test ROMs into untracked tests/roms/
+cmake -S tests -B build-host -G Ninja && cmake --build build-host && ctest --test-dir build-host
+# needs a host C compiler (gcc) on PATH; tests are skipped (not failed) if the ROMs are absent
 ```
 Flashing: hold X, power on (RPI-RP2 drive appears), copy the `.uf2` over. [VERIFY these commands match the actual CMake setup once Phase 0 is done, and update this file.]
  
