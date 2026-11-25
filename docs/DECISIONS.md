@@ -55,8 +55,8 @@ Serves Phase 0 acceptance ("CMake configures and builds to a UF2"). Hardware fla
 Serves Phase 0 acceptance ("UF2 flashes; all 8 buttons visibly respond"). Tested on the author's PicoSystem.
 
 - **Boots and runs:** the UF2 flashes, the firmware boots and shows the button test screen. All 8 buttons respond.
-- **Button layout** (physical): X top, Y left, B bottom, A right. The test screen was corrected twice to match (commits `4209add`, `1446af4`). Re-check the final layout on the next flash.
+- **Button layout** (physical): X top, Y left, B bottom, A right. The test screen was corrected twice to match (commits `4209add`, `1446af4`). Final layout confirmed on hardware.
 - **Battery:** `picosystem::battery()` returns a percentage; the value shown looked plausible. (Exact scale and accuracy not measured; tidy up when a battery indicator is built in Phase 6.)
 - **[VERIFY] #7 resolved: `stdio_usb` works alongside the PicoSystem SDK** (pico-sdk 2.3.1, picosystem `9a26b2a`). The device enumerates as a composite USB device, VID `2E8A` PID `000A`: a CDC serial port (COM7 on this PC, 115200 8N1) plus the SDK's vendor "Reset" interface, which Windows lists under "Universal Serial Bus devices" as "Reset". Button down/up lines were read from the serial port while pressing B, A, Y, X. The one-shot boot banner was not captured (port opened after boot); not a concern.
-- Not yet checked: running on battery with no USB host (HARDWARE_TESTS.md row 9), and the exact splash timing.
+- Confirmed: runs on battery with no USB host attached (HARDWARE_TESTS.md row 9). Exact splash timing not measured.
 - Remaining for Phase 0 acceptance: CI builds the UF2 (backlog item 4).
