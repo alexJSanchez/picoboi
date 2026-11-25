@@ -9,6 +9,7 @@ namespace {
 constexpr int OX = 40;
 constexpr int OY = 48;
 color_t g_pal[4];
+uint8_t g_shade[144 * 160];  // off-screen Game Boy frame, one shade (0..3) per byte
 }  // namespace
 
 void display_init() {
@@ -25,6 +26,14 @@ void display_init() {
 
 void display_draw_line(void *, const uint8_t px[160], uint8_t line) {
   if (line >= 144) return;
-  color_t *dst = SCREEN->data + (OY + line) * SCREEN_WIDTH + OX;
-  for (int x = 0; x < 160; x++) dst[x] = g_pal[px[x] & 3];
+  uint8_t *dst = g_shade + line * 160;
+  for (int x = 0; x < 160; x++) dst[x] = px[x] & 3;
+}
+
+void display_present() {
+  for (int y = 0; y < 144; y++) {
+    const uint8_t *src = g_shade + y * 160;
+    color_t *dst = SCREEN->data + (OY + y) * SCREEN_WIDTH + OX;
+    for (int x = 0; x < 160; x++) dst[x] = g_pal[src[x]];
+  }
 }
