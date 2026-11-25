@@ -99,5 +99,7 @@ Needs two games that have saves (only games with battery RAM can have one, for e
 | D8 | While holding X+B, also press A. | The game does not start. |
 | D9 | Power-cut test (needs the author): cut power during the erase after D3/A, several times. | After restart the game either still has its newest save or has none; never an older save. Pending: host tests cover this against a simulated flash only. |
 
+Result 2026-11-25 (author's report): deleting a save from the game list "works fine". The individual steps D1 to D8 were not itemised, and D9 (power cut during the erase) was not run; it is covered by host tests against a simulated flash only.
+
 
 Result of the Phase 4 test, 2026-11-25 (author's report on the final firmware, commit 09dcc17): the game's own save is still there after turning the PicoSystem off and on ("works beautifully"). Not exercised: the power-cut test (row 8), Zelda's save, the "play without saving" answer (row 7), and the failure paths ("SAVE FAILED", full save area).
