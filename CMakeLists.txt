@@ -18,7 +18,26 @@ include(${CMAKE_CURRENT_LIST_DIR}/third_party/picosystem/libraries/picosystem.cm
 picosystem_executable(picoboy
   src/main.cpp
   src/toolchain_shims.cpp
+  platform/display.cpp
+  platform/input.cpp
+  core/pb_core.c
 )
+target_include_directories(picoboy PRIVATE core platform third_party/peanut_gb)
+
+# Phase 1: embed a free test ROM (read in place via XIP). The ROM is downloaded by
+# tools/fetch_test_roms.sh into the untracked tests/roms/ and is never committed.
+# Without it the firmware still builds and shows a "no ROM embedded" message.
+set(PB_EMBED_ROM ${CMAKE_CURRENT_LIST_DIR}/tests/roms/cpu_instrs.gb CACHE FILEPATH "ROM to embed (Phase 1 only)")
+if(EXISTS ${PB_EMBED_ROM})
+  target_sources(picoboy PRIVATE src/embedded_rom.S)
+  set_source_files_properties(src/embedded_rom.S PROPERTIES
+    COMPILE_DEFINITIONS "PB_EMBED_ROM_PATH=\"${PB_EMBED_ROM}\""
+    OBJECT_DEPENDS ${PB_EMBED_ROM})
+  target_compile_definitions(picoboy PRIVATE PB_HAVE_EMBEDDED_ROM)
+  message(STATUS "Embedding ROM: ${PB_EMBED_ROM}")
+else()
+  message(STATUS "No ROM to embed (run tools/fetch_test_roms.sh); building without one")
+endif()
 
 
 # Phase 0: keep the SDK defaults (240x240, overclock on). Revisit in Phase 2.

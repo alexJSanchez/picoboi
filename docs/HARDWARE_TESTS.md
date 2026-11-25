@@ -23,3 +23,17 @@ Run before each release tag. Record failures and surprises in `docs/DECISIONS.md
 | 10 | Battery reading | A number is shown; note the value and what it appears to mean (percent or raw) in DECISIONS.md | |
 
 Note for item 8: the banner is printed once at boot, so open the serial port first or reset the device to see it.
+
+## Phase 1: emulator core on screen (backlog items 8, 9, 10)
+
+Firmware is built with the Blargg `cpu_instrs` ROM embedded (run `sh tools/fetch_test_roms.sh` first, then rebuild). Flash `build/picoboy.uf2`. Do not share that UF2: it contains the ROM.
+
+| # | Check | Expected | Result |
+|---|---|---|---|
+| 1 | Boot | Black border with a light-green 160x144 area centered on the screen (`cpu_instrs` title text appears) | |
+| 2 | `cpu_instrs` runs | Test names listed one after another; after about 55 s the screen shows `Passed all tests` (all 11 ROMs show "ok") | |
+| 3 | Picture quality | Text is crisp and readable, no tearing, no flicker, no shifted lines | |
+| 4 | Frame timing (USB serial, 115200) | A `bench frames=600 emu_us ... period_us ...` line about every 10 s. Note min/avg/max. `period_us` avg near 16667 means the screen refreshes at about 60 Hz | |
+| 5 | Core errors | No `core error` lines on serial | |
+| 6 | Menu combo | Holding X+Y for about 1 s prints `menu requested` once on serial (menu itself comes in Phase 6) | |
+| 7 | Buttons reach the core | `cpu_instrs` does not use buttons; confirm with a later ROM (Phase 7) or a homebrew game. For now only check that pressing buttons does not crash or change timing | |
