@@ -5,8 +5,16 @@
 
 #include <stdint.h>
 
+typedef enum {
+  DISPLAY_SCALE_1X,   // 160x144, pixel-perfect, centered
+  DISPLAY_SCALE_FIT,  // 1.5x: 240x216, fills the screen width (default)
+} display_scale_t;
+
 // Builds the DMG palette and clears the whole screen (border) to black.
 void display_init();
+
+// Chooses how the picture is scaled; clears the screen so no old edges remain.
+void display_set_scale(display_scale_t scale);
 
 // pb_core draw_line callback: stores one scanline in a private 160x144 off-screen buffer
 // (one byte per pixel, shade 0..3). It never touches the SDK framebuffer, so it is safe

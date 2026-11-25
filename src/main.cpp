@@ -53,6 +53,7 @@ Stat g_emu_us;     // time to emulate one Game Boy frame
 Stat g_update_us;  // time spent in update(), per display refresh
 Stat g_period_us;  // time between display refreshes
 Stat g_flip_us;    // SDK: time from flip start until the transfer finished
+Stat g_blit_us;    // draw(): copying/scaling the off-screen frame into the framebuffer
 uint32_t g_updates = 0;
 uint32_t g_emulated = 0;      // Game Boy frames emulated in this window
 uint32_t g_window_start_us = 0;
@@ -128,10 +129,12 @@ void update(uint32_t) {
            (unsigned)g_update_us.avg(), (unsigned)g_update_us.max,
            (unsigned)g_flip_us.avg(), (unsigned)g_flip_us.max,
            (unsigned)g_period_us.avg(), (unsigned)g_period_us.max);
+    printf("  blit_us   avg=%u max=%u\n", (unsigned)g_blit_us.avg(), (unsigned)g_blit_us.max);
     g_emu_us.reset();
     g_update_us.reset();
     g_period_us.reset();
     g_flip_us.reset();
+    g_blit_us.reset();
     g_updates = 0;
     g_emulated = 0;
   }
@@ -147,5 +150,7 @@ void draw(uint32_t) {
     text(g_error ? g_error : "not running", 10, 120, 220);
     return;
   }
+  const uint32_t t0 = time_us();
   display_present();
+  g_blit_us.add(time_us() - t0);
 }
