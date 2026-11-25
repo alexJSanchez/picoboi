@@ -25,6 +25,13 @@ extern "C" {
 #define PB_SCREEN_W 160
 #define PB_SCREEN_H 144
 
+// Audio: the APU produces a fixed number of samples per Game Boy frame. Frames last
+// 70224 cycles / 4194304 Hz = 16742.706 us, so the real sample rate is
+// 548 / 0.016742706 s = 32,730.7 Hz (the APU's nominal rate is 32,768 Hz; the output
+// side must consume at the real rate). Checked against the APU at compile time.
+#define PB_AUDIO_SAMPLES_PER_FRAME 548
+#define PB_AUDIO_NOMINAL_RATE 32768
+
 // Result of pb_core_init().
 typedef enum {
   PB_OK = 0,
@@ -59,6 +66,10 @@ typedef struct {
   // Called for each byte the game sends on the serial port. Optional; used by tests
   // (Blargg test ROMs print their result over serial).
   void (*on_serial_tx)(void *user, uint8_t byte);
+  // Called once at the end of every emulated frame (rendered or not) with
+  // PB_AUDIO_SAMPLES_PER_FRAME mono samples (signed 16-bit, left and right averaged).
+  // The pointer is only valid during the call. Optional: if NULL, audio is not generated.
+  void (*on_audio)(void *user, const int16_t *mono, uint32_t count);
   void *user;
 } pb_core_config_t;
 

@@ -3,14 +3,32 @@
 
 #include <string.h>
 
-// Compile-time configuration of the core (sound is added in Phase 5).
-#define ENABLE_SOUND 0
+// Audio: the APU bundled with Peanut-GB (MIT), 16-bit samples, integer-only.
+#ifndef MINIGB_APU_AUDIO_FORMAT_S16SYS
+#define MINIGB_APU_AUDIO_FORMAT_S16SYS 1
+#endif
+#include "minigb_apu.h"
+
+// Peanut-GB calls audio_read()/audio_write() with `gb` in scope; route them to our APU.
+struct gb_s;
+static uint8_t pb_audio_read(struct gb_s *gb, uint16_t addr);
+static void pb_audio_write(struct gb_s *gb, uint16_t addr, uint8_t val);
+#define audio_read(addr) pb_audio_read(gb, (addr))
+#define audio_write(addr, val) pb_audio_write(gb, (addr), (val))
+
+// Compile-time configuration of the core.
+#define ENABLE_SOUND 1
 #define ENABLE_LCD 1
 #include "peanut_gb.h"
+
+_Static_assert(AUDIO_SAMPLES == PB_AUDIO_SAMPLES_PER_FRAME, "APU frame size changed");
+_Static_assert(AUDIO_SAMPLE_RATE == PB_AUDIO_NOMINAL_RATE, "APU sample rate changed");
 
 typedef struct {
   struct gb_s gb;
   pb_core_config_t cfg;
+  struct minigb_apu_ctx apu;
+  audio_sample_t abuf[PB_AUDIO_SAMPLES_PER_FRAME * 2];  // stereo from the APU, mixed to mono in place
   bool dirty;
 } impl_t;
 
@@ -23,6 +41,14 @@ static inline const impl_t *impl_c(const pb_core_t *c) {
   return (const impl_t *)(const void *)c->storage;
 }
 static inline impl_t *from_gb(struct gb_s *gb) { return (impl_t *)gb->direct.priv; }
+
+static uint8_t pb_audio_read(struct gb_s *gb, uint16_t addr) {
+  return minigb_apu_audio_read(&from_gb(gb)->apu, addr);
+}
+
+static void pb_audio_write(struct gb_s *gb, uint16_t addr, uint8_t val) {
+  minigb_apu_audio_write(&from_gb(gb)->apu, addr, val);
+}
 
 static void report(impl_t *m, int code, uint16_t addr) {
   if (m->cfg.on_error) m->cfg.on_error(m->cfg.user, code, addr);
@@ -88,6 +114,7 @@ pb_status_t pb_core_init(pb_core_t *c, const pb_core_config_t *cfg) {
 
   if (m->cfg.cart_ram_size < gb_get_save_size(&m->gb)) return PB_ERR_CART_RAM_TOO_SMALL;
 
+  minigb_apu_audio_init(&m->apu);
   gb_init_lcd(&m->gb, draw_line_cb);
   gb_init_serial(&m->gb, serial_tx_cb, NULL);
   return PB_OK;
@@ -98,7 +125,18 @@ void pb_core_set_buttons(pb_core_t *c, uint8_t mask) {
   impl(c)->gb.direct.joypad = (uint8_t)~mask;
 }
 
-void pb_core_run_frame(pb_core_t *c) { gb_run_frame(&impl(c)->gb); }
+void pb_core_run_frame(pb_core_t *c) {
+  impl_t *m = impl(c);
+  gb_run_frame(&m->gb);
+  if (m->cfg.on_audio) {
+    // The APU only advances when asked for samples, so this must run once per emulated
+    // frame, rendered or not.
+    minigb_apu_audio_callback(&m->apu, m->abuf);
+    for (unsigned i = 0; i < AUDIO_SAMPLES; i++)  // in place: reads index 2i, writes i
+      m->abuf[i] = (audio_sample_t)(((int32_t)m->abuf[2 * i] + (int32_t)m->abuf[2 * i + 1]) / 2);
+    m->cfg.on_audio(m->cfg.user, m->abuf, AUDIO_SAMPLES);
+  }
+}
 
 void pb_core_set_rendering(pb_core_t *c, bool on) {
   // Peanut-GB skips all pixel work when the line callback is NULL.

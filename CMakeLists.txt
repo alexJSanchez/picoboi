@@ -22,8 +22,11 @@ picosystem_executable(picoboy
   platform/input.cpp
   core/pb_core.c
   core/pb_pacer.c
+  third_party/peanut_gb/examples/sdl2/minigb_apu/minigb_apu.c
 )
-target_include_directories(picoboy PRIVATE core platform third_party/peanut_gb)
+target_include_directories(picoboy PRIVATE core platform third_party/peanut_gb
+  third_party/peanut_gb/examples/sdl2/minigb_apu)
+target_compile_definitions(picoboy PRIVATE MINIGB_APU_AUDIO_FORMAT_S16SYS=1)
 
 # Phase 1: embed a free test ROM (read in place via XIP). The ROM is downloaded by
 # tools/fetch_test_roms.sh into the untracked tests/roms/ and is never committed.

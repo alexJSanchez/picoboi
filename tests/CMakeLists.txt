@@ -7,8 +7,12 @@ enable_testing()
 set(ROOT ${CMAKE_CURRENT_LIST_DIR}/..)
 set(ROMS ${CMAKE_CURRENT_LIST_DIR}/roms)  # filled by tools/fetch_test_roms.sh (untracked)
 
-add_executable(core_run core_run.c ${ROOT}/core/pb_core.c)
-target_include_directories(core_run PRIVATE ${ROOT}/core ${ROOT}/third_party/peanut_gb)
+set(APU_DIR ${ROOT}/third_party/peanut_gb/examples/sdl2/minigb_apu)
+set(CORE_SOURCES ${ROOT}/core/pb_core.c ${APU_DIR}/minigb_apu.c)
+add_compile_definitions(MINIGB_APU_AUDIO_FORMAT_S16SYS=1)
+
+add_executable(core_run core_run.c ${CORE_SOURCES})
+target_include_directories(core_run PRIVATE ${ROOT}/core ${ROOT}/third_party/peanut_gb ${APU_DIR})
 target_compile_options(core_run PRIVATE -Wall -Wextra)
 
 # Blargg cpu_instrs prints "Passed all tests" over serial. ~3300 frames at full speed.
@@ -32,3 +36,9 @@ add_executable(test_pacer test_pacer.c ${ROOT}/core/pb_pacer.c)
 target_include_directories(test_pacer PRIVATE ${ROOT}/core)
 target_compile_options(test_pacer PRIVATE -Wall -Wextra)
 add_test(NAME pacer COMMAND test_pacer)
+
+# Audio: generated tone ROM, checks sample count per frame and pitch.
+add_executable(test_audio test_audio.c ${CORE_SOURCES})
+target_include_directories(test_audio PRIVATE ${ROOT}/core ${ROOT}/third_party/peanut_gb ${APU_DIR})
+target_compile_options(test_audio PRIVATE -Wall -Wextra)
+add_test(NAME audio_tone COMMAND test_audio)
