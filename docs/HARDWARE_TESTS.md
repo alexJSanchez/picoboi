@@ -15,7 +15,7 @@ Run before each release tag. Record failures and surprises in `docs/DECISIONS.md
 | 2 | Splash | "PicoBoy / Game Boy emulator / hello world" for about 2.5 s | |
 | 3 | Button screen appears after the splash | Dark blue background, 8 labelled squares, battery number at the bottom | |
 | 4 | Press UP, DOWN, LEFT, RIGHT one at a time | Matching square turns green while held, back to dim on release | |
-| 5 | Press A, B, X, Y one at a time | Same; the on-screen layout matches the physical layout (X top, Y left, A bottom, B right) | |
+| 5 | Press A, B, X, Y one at a time | Same; the on-screen layout matches the physical layout (X top, Y left, B bottom, A right) | |
 | 6 | Hold several buttons at once | All held squares green together | |
 | 7 | Text is readable, no tearing or artefacts | | |
 | 8 | USB serial ([VERIFY] #7): connect USB, open the serial port (115200 8N1 is fine) | Banner "PicoBoy hello-world (Phase 0)" and `NAME down` / `NAME up` lines on each press and release | |
