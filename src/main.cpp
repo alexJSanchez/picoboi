@@ -13,6 +13,9 @@
 #include "pico/stdio_usb.h"
 #include "picosystem.hpp"
 
+#ifdef PB_FLASH_TEST
+#include "flash_test.h"
+#endif
 #include "audio.h"
 #include "display.h"
 #include "input.h"
@@ -150,6 +153,10 @@ void run_boot_bench() {
 
 void init() {
   stdio_init_all();
+#ifdef PB_FLASH_TEST
+  flash_test_init();  // test mode: inspect the flash instead of running the emulator
+  return;
+#endif
   printf("PicoBoy Phase 1\n");
   display_init();
   audio_init();
@@ -176,6 +183,10 @@ void init() {
 }
 
 void update(uint32_t) {
+#ifdef PB_FLASH_TEST
+  flash_test_update();
+  return;
+#endif
   if (!g_running) return;
   const uint32_t start = time_us();
   if (g_last_start_us) g_period_us.add(start - g_last_start_us);
@@ -250,6 +261,10 @@ void update(uint32_t) {
 }
 
 void draw(uint32_t) {
+#ifdef PB_FLASH_TEST
+  flash_test_draw();
+  return;
+#endif
   if (!g_running) {
     pen(0, 0, 0);
     clear();

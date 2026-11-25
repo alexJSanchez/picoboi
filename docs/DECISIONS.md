@@ -217,3 +217,12 @@ Serves Phase 3 backlog item 12 (`tools/pack_library.py` + `storage/rom_library` 
 - **Found while committing:** `.gitignore` blocks `*.bin`, so the golden file was silently ignored; added a narrow exception for `tests/golden/*.bin`.
 - **Cartridge RAM size code 5 (64 KiB) is flagged as a bad header:** Peanut-GB's `gb_get_save_size()` has no entry for it (it would read past its table), so we do not offer such cartridges. Revisit if a wanted game uses it.
 - **Still to do in Phase 3:** the UF2 hardware test with a throwaway file (item 13), the launcher and firmware integration (reading the index from flash, listing the ROMs, running the chosen one; replacing the embedded ROM), and the 1 MiB linker cap.
+
+### 2026-11-25 — Phase 3: flash test firmware prepared (not yet run on hardware)
+
+Serves backlog item 13 (test the UF2 flashing approach on hardware with a throwaway file). Built, not yet flashed.
+
+- New build option `PB_FLASH_TEST` (`src/flash_test.cpp`): no emulator; reports the firmware image CRC (from the linker's `__flash_binary_end`), validates the library index in place, re-reads every ROM from flash and compares its CRC with the index, writes a one-page marker into the settings region if (and only if) that page is blank, and reports the first save-area sector. Procedure and expected results: `docs/HARDWARE_TESTS.md`, "Phase 3: flash and UF2".
+- This is the **first flash write by our code**. It goes through `pb_flash_erase_allowed()` / `pb_flash_program_allowed()` and `flash_safe_execute()`. [VERIFY #3 partly resolved: `flash_safe_execute()` exists in pico-sdk 2.3.1.] We never start the second core, so the build defines `PICO_FLASH_ASSUME_CORE1_SAFE=1` (the SDK's documented switch for that case); otherwise `flash_safe_execute` would refuse to run because it cannot know what core 1 is doing. If a later feature starts core 1, this assumption must be revisited.
+- The test library (`build-flashtest/flashtest_library.uf2`, 1,680 blocks, offsets `0x100000` to `0x169000`) is made from the synthetic ROMs only.
+- Expected stale data: the earlier firmware builds embed a 1 MiB ROM that physically extends past `0x100000` (the library area), so before the library is flashed the index sector will hold old bytes, not erased flash.

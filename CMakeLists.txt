@@ -73,3 +73,14 @@ endif()
 # Peanut-GB accuracy option for sprite rendering (see third_party/peanut_gb/peanut_gb.h).
 set(PB_HIGH_LCD_ACCURACY 1 CACHE STRING "PEANUT_GB_HIGH_LCD_ACCURACY (0 or 1)")
 target_compile_definitions(picoboy PRIVATE PEANUT_GB_HIGH_LCD_ACCURACY=${PB_HIGH_LCD_ACCURACY})
+
+# Flash test build: no emulator; inspects the flash and writes a marker into the settings area,
+# to verify the library UF2 approach on hardware (docs/HARDWARE_TESTS.md).
+option(PB_FLASH_TEST "Build the flash test firmware" OFF)
+if(PB_FLASH_TEST)
+  target_sources(picoboy PRIVATE src/flash_test.cpp storage/crc32.c storage/rom_library.c)
+  target_include_directories(picoboy PRIVATE storage src)
+  target_link_libraries(picoboy pico_flash hardware_flash)
+  # We never start the second core, so flash_safe_execute may assume it is safe.
+  target_compile_definitions(picoboy PRIVATE PB_FLASH_TEST PICO_FLASH_ASSUME_CORE1_SAFE=1)
+endif()

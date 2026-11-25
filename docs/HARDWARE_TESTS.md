@@ -37,3 +37,16 @@ Firmware is built with the Blargg `cpu_instrs` ROM embedded (run `sh tools/fetch
 | 5 | Core errors | No `core error` lines on serial | |
 | 6 | Menu combo | Holding X+Y for about 1 s prints `menu requested` once on serial (menu itself comes in Phase 6) | |
 | 7 | Buttons reach the core | `cpu_instrs` does not use buttons; confirm with a later ROM (Phase 7) or a homebrew game. For now only check that pressing buttons does not crash or change timing | |
+
+## Phase 3: flash and UF2 (backlog item 13)
+
+Verifies, on the device, the assumption the ROM library depends on: a UF2 that covers only the library index and ROM area leaves the firmware and the settings/save area alone, and the ROMs read back correctly from flash (read in place, XIP). Uses synthetic ROMs only (no game data). Build and files: `build-flashtest/picoboy.uf2` (firmware, `cmake -DPB_FLASH_TEST=ON`, no emulator) and `build-flashtest/flashtest_library.uf2` (library with 3 synthetic ROMs: 32 KiB, 128 KiB, 256 KiB). The firmware prints a report on the screen and every 3 s over USB serial.
+
+| Stage | Action | Expected |
+|---|---|---|
+| A | Flash `picoboy.uf2` (hold X, power on, copy). Open serial. | Report appears. `LIB:` is not OK (old data from earlier builds sits there: "NO LIBRARY (bad magic)" or EMPTY). `MARKER was blank`, then written with result 0 and now valid. Note the `FW CRC` (call it F). First save-area sector blank. |
+| B | Flash `flashtest_library.uf2` (hold X, power on, copy). The device restarts into the firmware. | `FW CRC` is **F** again (firmware untouched). `LIB: OK`, 3 ROMs, data ok 3 bad 0 (CRCs of the ROMs read from flash match the index). `MARKER was valid` (settings untouched, nothing rewritten). Save area still blank. |
+| C | Flash `picoboy.uf2` again. | `LIB: OK`, 3 ROMs, data ok 3 (the library survives a firmware reflash). `FW CRC` is F. `MARKER was valid`. |
+| D (optional) | Power-cycle the device. | Same report as C (nothing lost without power). |
+
+Record the numbers in `docs/DECISIONS.md`. Any mismatch in the firmware CRC, the marker or the save area is a failure of the approach: stop and investigate before building the launcher.
