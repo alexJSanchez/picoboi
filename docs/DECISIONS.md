@@ -163,3 +163,14 @@ CLAUDE.md says not to start a later phase early; the author asked for audio now 
 ### 2026-11-25 — Audio step 2: first hardware try failed; cause found (DMA channel collision)
 
 First flash of the speaker driver (test-tone build): the author heard a repeating fast click that did not change with the pitch, and the device printed nothing over serial (USB enumerated, main loop silent). Cause: the PicoSystem SDK drives the screen with **DMA channel 0 without claiming it** (`hardware.cpp`: `dma_channel = 0`), so `dma_claim_unused_channel()` returned channel 0 and our audio setup reconfigured the screen's channel; the screen transfer then never completed and the main loop waited on it forever. Fix: claim channel 0 on the SDK's behalf (`dma_channel_claim(0)` if not claimed) before claiming ours, plus a refusal to start if we ever got 0. Lesson recorded: SDK-internal hardware use is not visible through the Pico SDK's claim tables, so any new DMA, PWM slice or timer use must be checked against `third_party/picosystem/libraries/hardware.cpp` first. The same check applies to PWM slice 5 (speaker) and any future PIO/IRQ use.
+
+### 2026-11-25 — Audio step 2: speaker pipeline verified on hardware (test-tone build)
+
+Serial readout after the DMA channel fix, test-tone build (`cpu_instrs` screen, steps through 220, 440, 880, 1760, 3520, 5000 Hz and a silent step):
+
+- **PWM:** `top` = 7637 as computed (7638 cycles per sample at 250 MHz), divider 1.0, enabled. DMA busy, **measured playback 32,730 to 32,731 Hz** against the expected 32,730.7 Hz, so the PWM+DMA timing is right.
+- **Narrow write assumption confirmed:** the compare register reads back `0x162e162e` (the same 16-bit value in both halves), so the 16-bit DMA write to the channel B half replicates to both halves as expected; harmless for GPIO 11 (channel B).
+- **Cost of audio:** `update()` avg 12,591 us and max 15,786 us (was 12,508 and 15,532 before audio; the test tone also runs the core with no audio sink, so this is a bound on the driver and the sync logic, not on the APU, which is measured with the game). `gb_fps` 59.76, `screen_hz` 39.71, no missed refresh. Blit unchanged (about 966 us).
+- **Sync logic on real clocks:** one underrun and one overrun, both at start-up only (the count did not grow afterwards): the first audio frame arrives later than the 1000-sample prefill lasts. About 11 one-sample nudges (`dups`) in the first 25 s after the reference was learned, consistent with a small clock mismatch. Fill stays between about 1,200 and 1,500 when sampled right after a push.
+- RAM: the 4 KB ring buffer is in `.bss` (`g_ring` at 0x20003000).
+- **Still open:** how it sounds. Quality of PWM-through-piezo, the mix level (`g_gain`, full scale +-16384 maps to +-50% duty), and whether the carrier whine is audible have to be judged by ear. Then the game's APU audio and its CPU cost.
