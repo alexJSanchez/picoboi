@@ -44,12 +44,13 @@ The ROM is not in RAM: it is read-only data in flash and read in place through X
 | Item | Bytes |
 |---|---:|
 | `.boot2` | 256 |
-| `.text` (code) | 106,816 |
-| `.rodata` (includes the 65,536-byte embedded test ROM and the 32,768-byte default sprite sheet) | 113,332 |
+| `.text` (code that runs from flash) | 102,192 |
+| `.rodata` (includes the 32,768-byte default SDK sprite sheet) | 50,532 |
 | Other (exception tables, binary info) | 952 |
+| `.data` initial values (the emulator and audio code that is copied into RAM at boot, see above) | 32,332 |
 | **Firmware binary** (V1, `picoboy.bin`; the linker caps it at 1 MiB) | **186,264 (about 182 KiB)** |
 
-The 1 MiB firmware region in `docs/PLAN.md` is not yet enforced by the linker (Phase 3).
+The 1 MiB firmware region (`docs/FLASH_LAYOUT.md`) is enforced by the linker: `ld/picoboy_memmap.ld.in` takes its flash length from `PB_FW_SIZE` in `storage/flash_layout.h`, and a firmware over the limit fails to link. V1 uses about 18% of it. (Development builds with a ROM embedded with `-DPB_EMBED_ROM` are exempt and would overwrite a game library.)
 
 ### Open issue for Phase 3: PicoSystem's own flash map
 
