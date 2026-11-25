@@ -6,10 +6,37 @@
 using namespace picosystem;
 
 namespace {
-constexpr uint32_t MENU_HOLD_MS = 1000;
-uint32_t g_hold_start_ms = 0;
-bool g_holding = false;
-bool g_fired = false;
+
+constexpr uint32_t HOLD_MS = 1000;
+
+struct Hold {
+  bool holding = false;
+  bool fired = false;
+  uint32_t start_ms = 0;
+};
+
+// Returns true once when `down` has been true for HOLD_MS; re-arms when released.
+bool update_hold(Hold &h, bool down) {
+  if (!down) {
+    h.holding = false;
+    h.fired = false;
+    return false;
+  }
+  const uint32_t now = time();
+  if (!h.holding) {
+    h.holding = true;
+    h.start_ms = now;
+    return false;
+  }
+  if (!h.fired && now - h.start_ms >= HOLD_MS) {
+    h.fired = true;
+    return true;
+  }
+  return false;
+}
+
+Hold g_menu, g_mute;
+
 }  // namespace
 
 uint8_t input_poll() {
@@ -25,22 +52,8 @@ uint8_t input_poll() {
   return m;
 }
 
-bool input_menu_requested() {
-  bool both = button(X) && button(Y);
-  if (!both) {
-    g_holding = false;
-    g_fired = false;
-    return false;
-  }
-  uint32_t now = time();
-  if (!g_holding) {
-    g_holding = true;
-    g_hold_start_ms = now;
-    return false;
-  }
-  if (!g_fired && now - g_hold_start_ms >= MENU_HOLD_MS) {
-    g_fired = true;
-    return true;
-  }
-  return false;
+bool input_menu_requested() { return update_hold(g_menu, button(X) && button(Y) && !button(B)); }
+
+bool input_mute_toggle_requested() {
+  return update_hold(g_mute, button(X) && button(Y) && button(B));
 }

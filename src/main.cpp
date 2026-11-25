@@ -12,6 +12,7 @@
 #include "pico/stdlib.h"
 #include "picosystem.hpp"
 
+#include "audio.h"
 #include "display.h"
 #include "input.h"
 #include "pb_core.h"
@@ -59,6 +60,8 @@ uint32_t g_emulated = 0;      // Game Boy frames emulated in this window
 uint32_t g_window_start_us = 0;
 uint32_t g_last_start_us = 0;
 
+void on_core_audio(void *, const int16_t *mono, uint32_t count) { audio_push(mono, count); }
+
 void on_core_error(void *, int code, uint16_t addr) {
   if (g_error_count++ < 5) printf("core error %d at 0x%04x\n", code, addr);
 }
@@ -69,6 +72,7 @@ void init() {
   stdio_init_all();
   printf("PicoBoy Phase 1\n");
   display_init();
+  audio_init();
 
 #ifdef PB_HAVE_EMBEDDED_ROM
   pb_core_config_t cfg = {};
@@ -78,6 +82,9 @@ void init() {
   cfg.cart_ram_size = sizeof(g_cart_ram);
   cfg.draw_line = display_draw_line;
   cfg.on_error = on_core_error;
+#ifndef PB_AUDIO_TEST_TONE
+  cfg.on_audio = on_core_audio;  // game audio; the test-tone build plays tones instead
+#endif
   pb_status_t st = pb_core_init(&g_core, &cfg);
   if (st == PB_OK) {
     g_running = true;
@@ -103,12 +110,19 @@ void update(uint32_t) {
 
   pb_core_set_buttons(&g_core, input_poll());
   if (input_menu_requested()) printf("menu requested (menu not implemented yet)\n");
+  if (input_mute_toggle_requested()) {
+    audio_set_enabled(!audio_enabled());
+    printf("audio %s\n", audio_enabled() ? "on" : "muted");
+  }
 
   const uint32_t due = pb_pacer_frames_due(&g_pacer, start);
   for (uint32_t i = 0; i < due; i++) {
     pb_core_set_rendering(&g_core, i == due - 1);  // show only the newest frame
     const uint32_t t0 = time_us();
     pb_core_run_frame(&g_core);
+#ifdef PB_AUDIO_TEST_TONE
+    audio_push_test_tone();
+#endif
     g_emu_us.add(time_us() - t0);
   }
   g_emulated += due;
@@ -130,6 +144,10 @@ void update(uint32_t) {
            (unsigned)g_flip_us.avg(), (unsigned)g_flip_us.max,
            (unsigned)g_period_us.avg(), (unsigned)g_period_us.max);
     printf("  blit_us   avg=%u max=%u\n", (unsigned)g_blit_us.avg(), (unsigned)g_blit_us.max);
+    const audio_stats_t au = audio_get_stats();
+    printf("  audio %s fill=%d underruns=%u overruns=%u drops=%u dups=%u\n",
+           audio_enabled() ? "on" : "muted", (int)au.fill, (unsigned)au.underruns,
+           (unsigned)au.overruns, (unsigned)au.drops, (unsigned)au.dups);
     g_emu_us.reset();
     g_update_us.reset();
     g_period_us.reset();

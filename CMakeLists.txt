@@ -18,10 +18,12 @@ include(${CMAKE_CURRENT_LIST_DIR}/third_party/picosystem/libraries/picosystem.cm
 picosystem_executable(picoboy
   src/main.cpp
   src/toolchain_shims.cpp
+  platform/audio.cpp
   platform/display.cpp
   platform/input.cpp
   core/pb_core.c
   core/pb_pacer.c
+  core/pb_audio_sync.c
   third_party/peanut_gb/examples/sdl2/minigb_apu/minigb_apu.c
 )
 target_include_directories(picoboy PRIVATE core platform third_party/peanut_gb
@@ -50,3 +52,10 @@ disable_startup_logo(picoboy)
 # USB serial logging (PLAN.md [VERIFY] #7). No UART pins are exposed on the PicoSystem.
 pico_enable_stdio_usb(picoboy 1)
 pico_enable_stdio_uart(picoboy 0)
+
+# Audio test build: plays steady test tones (several pitches) instead of game audio, to judge
+# the piezo speaker on its own.  cmake -DPB_AUDIO_TEST_TONE=ON ...
+option(PB_AUDIO_TEST_TONE "Play test tones instead of game audio" OFF)
+if(PB_AUDIO_TEST_TONE)
+  target_compile_definitions(picoboy PRIVATE PB_AUDIO_TEST_TONE)
+endif()
