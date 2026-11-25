@@ -49,4 +49,19 @@ Verifies, on the device, the assumption the ROM library depends on: a UF2 that c
 | C | Flash `picoboy.uf2` again. | `LIB: OK`, 3 ROMs, data ok 3 (the library survives a firmware reflash). `FW CRC` is F. `MARKER was valid`. |
 | D (optional) | Power-cycle the device. | Same report as C (nothing lost without power). |
 
-Record the numbers in `docs/DECISIONS.md`. Any mismatch in the firmware CRC, the marker or the save area is a failure of the approach: stop and investigate before building the launcher.
+Result 2026-11-25: stages A, B and C passed (see `docs/DECISIONS.md`). Record the numbers in `docs/DECISIONS.md`. Any mismatch in the firmware CRC, the marker or the save area is a failure of the approach: stop and investigate before building the launcher.
+
+## Phase 3: game list (launcher)
+
+Firmware `build-lib/picoboy.uf2` (the default build, no ROM inside) and a library made with `python tools/pack_library.py roms -o library.uf2`. Flash both (hold X, power on, copy each).
+
+| # | Check | Expected | Result 2026-11-25 |
+|---|---|---|---|
+| 1 | Boot | A list of the games in the library, names and sizes, a highlighted row, mapper and save size of the selected game underneath | pass |
+| 2 | UP / DOWN | Highlight moves, wraps at both ends; the list scrolls if longer than 8 | list shown; scrolling not exercised with only 2 games |
+| 3 | A on a runnable game | The game starts with picture and sound | pass |
+| 4 | Hold X+Y for about 1 s during a game | Back to the list, no sound left over | pass |
+| 5 | Start the other game | Starts normally | pass |
+| 6 | A greyed game (Game Boy Color only, unsupported cartridge, bad header) | Greyed row, reason in red, A does nothing | not yet tried (no such ROM in the library) |
+| 7 | No library flashed (erased or stale flash) | A message explaining how to make and flash `library.uf2` | not yet tried |
+| 8 | Zelda: Link's Awakening picture | Compatibility note in `docs/COMPAT.md` (Phase 7) | author reported nothing wrong |

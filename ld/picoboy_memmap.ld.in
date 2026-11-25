@@ -5,7 +5,11 @@
  * (PLAN.md section 6, lever 1): the code of core/pb_core.c (which includes all of Peanut-GB)
  * and of minigb_apu.c is excluded from the flash .text rule below, so it falls through to
  * the `*(.text*)` rule of the RAM .data section and is copied to RAM at boot.
- * Later changes (Phase 3: cap the firmware at 1 MiB, flash regions) also go here.
+ * Second change: the FLASH length is a template value (@PB_FLASH_LIMIT_KB@, filled in by CMake from
+ * storage/flash_layout.h): the firmware must fit in PB_FW_SIZE (1 MiB) so that it can never reach the
+ * library index and ROM area behind it; a link that exceeds it fails with "region FLASH overflowed".
+ * Development builds that embed a ROM (-DPB_EMBED_ROM) get the whole usable flash instead.
+ * CMake writes the result to <build dir>/picoboy_memmap.ld.
  */
 /* Based on GCC ARM embedded samples.
    Defines the following symbols for use by code:
@@ -32,7 +36,7 @@
 
 MEMORY
 {
-    FLASH(rx) : ORIGIN = 0x10000000,  LENGTH = 12288k /* User Flash (12MiB) */
+    FLASH(rx) : ORIGIN = 0x10000000,  LENGTH = @PB_FLASH_LIMIT_KB@k /* firmware limit, from storage/flash_layout.h (see CMakeLists.txt) */
     FAT(r)    : ORIGIN = 0x10003000,  LENGTH = 4096K  /* Reserved for FAT (4MiB) */
     RAM(rwx)  : ORIGIN = 0x20000000,  LENGTH = 256k
     SCRATCH_X(rwx) : ORIGIN = 0x20040000, LENGTH = 4k

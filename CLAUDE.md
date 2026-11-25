@@ -35,6 +35,7 @@ sh tools/fetch_test_roms.sh   # downloads free test ROMs into untracked tests/ro
 cmake -S tests -B build-host -G Ninja && cmake --build build-host && ctest --test-dir build-host
 # needs a host C compiler (gcc) on PATH; tests are skipped (not failed) if the ROMs are absent
 ```
+The default firmware has no ROM inside: it boots to a game list read from flash. Make the library from ROMs in the (git-ignored) `roms/` folder with `python tools/pack_library.py roms -o library.uf2` and flash it like firmware; either UF2 can be flashed alone without disturbing the other. `-DPB_EMBED_ROM=<file>` builds a ROM into the firmware and runs it directly (benchmarks, tone build; such a build exceeds the 1 MiB firmware limit and would overwrite a library).
 Flashing: hold X, power on (RPI-RP2 drive appears), copy the `.uf2` over. [VERIFY these commands match the actual CMake setup once Phase 0 is done, and update this file.]
  
 ## Definition of done (every change)

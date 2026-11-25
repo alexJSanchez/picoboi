@@ -31,9 +31,6 @@ picosystem_executable(picoboy
   core/pb_audio_sync.c
   third_party/peanut_gb/examples/sdl2/minigb_apu/minigb_apu.c
 )
-# Own copy of the SDK's linker script: runs the emulator code from RAM (see ld/picoboy_memmap.ld).
-pico_set_linker_script(picoboy ${CMAKE_CURRENT_LIST_DIR}/ld/picoboy_memmap.ld)
-set_target_properties(picoboy PROPERTIES LINK_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/ld/picoboy_memmap.ld)
 target_include_directories(picoboy PRIVATE core platform launcher storage third_party/peanut_gb
   third_party/peanut_gb/examples/sdl2/minigb_apu)
 target_compile_definitions(picoboy PRIVATE MINIGB_APU_AUDIO_FORMAT_S16SYS=1)
@@ -52,6 +49,34 @@ if(PB_EMBED_ROM AND EXISTS ${PB_EMBED_ROM})
 else()
   message(STATUS "No embedded ROM: this firmware boots to the game list (library from tools/pack_library.py)")
 endif()
+
+# Own copy of the SDK's linker script (ld/picoboy_memmap.ld.in): runs the emulator code from RAM and
+# limits the firmware's flash size. The limit comes from storage/flash_layout.h, the single source
+# of truth: the normal firmware must stay inside PB_FW_SIZE so it can never overwrite the library
+# index and ROM area; a development build with an embedded ROM exceeds that on purpose and gets
+# the whole usable flash (PB_FLASH_USER_END). -DPB_FLASH_LIMIT_KB=<n> overrides (used to test the cap).
+file(READ ${CMAKE_CURRENT_LIST_DIR}/storage/flash_layout.h PB_LAYOUT_TEXT)
+string(REGEX MATCH "#define PB_FW_SIZE (0x[0-9A-Fa-f]+)u" _unused "${PB_LAYOUT_TEXT}")
+set(PB_FW_SIZE_HEX "${CMAKE_MATCH_1}")
+string(REGEX MATCH "#define PB_FLASH_USER_END (0x[0-9A-Fa-f]+)u" _unused "${PB_LAYOUT_TEXT}")
+set(PB_USER_END_HEX "${CMAKE_MATCH_1}")
+if(NOT PB_FW_SIZE_HEX OR NOT PB_USER_END_HEX)
+  message(FATAL_ERROR "cannot read PB_FW_SIZE / PB_FLASH_USER_END from storage/flash_layout.h")
+endif()
+set(PB_FLASH_LIMIT_KB "" CACHE STRING "Override the firmware flash limit in KiB (testing only)")
+if(NOT PB_FLASH_LIMIT_KB)
+  if(PB_EMBED_ROM AND EXISTS ${PB_EMBED_ROM})
+    math(EXPR PB_FLASH_LIMIT_KB_USED "${PB_USER_END_HEX} / 1024")
+  else()
+    math(EXPR PB_FLASH_LIMIT_KB_USED "${PB_FW_SIZE_HEX} / 1024")
+  endif()
+else()
+  set(PB_FLASH_LIMIT_KB_USED ${PB_FLASH_LIMIT_KB})
+endif()
+message(STATUS "Firmware flash limit: ${PB_FLASH_LIMIT_KB_USED} KiB")
+set(PB_FLASH_LIMIT_KB ${PB_FLASH_LIMIT_KB_USED})  # value substituted into the linker script template
+configure_file(${CMAKE_CURRENT_LIST_DIR}/ld/picoboy_memmap.ld.in ${CMAKE_CURRENT_BINARY_DIR}/picoboy_memmap.ld @ONLY)
+pico_set_linker_script(picoboy ${CMAKE_CURRENT_BINARY_DIR}/picoboy_memmap.ld)
 
 
 # Phase 0: keep the SDK defaults (240x240, overclock on). Revisit in Phase 2.

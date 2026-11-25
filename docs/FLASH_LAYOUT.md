@@ -8,7 +8,7 @@ Offsets are from the start of flash; the CPU sees flash at `0x10000000 + offset`
 
 | Region | Offset | Size | Written by | Purpose |
 |---|---|---|---|---|
-| Firmware | `0x000000` | 1 MiB | flashing the UF2 | Code and constants. The linker is capped here (not yet; planned in Phase 3) |
+| Firmware | `0x000000` | 1 MiB | flashing the UF2 | Code and constants. The linker is capped here: a firmware over 1 MiB fails to link (`region FLASH overflowed`). Development builds with an embedded ROM (`-DPB_EMBED_ROM`) are the exception and may use the whole user flash |
 | Library index | `0x100000` | 4 KiB | `tools/pack_library.py` (UF2) | One sector: header and ROM entries |
 | ROM area | `0x101000` | 0x8FF000 (about 9.0 MiB) | `tools/pack_library.py` (UF2) | ROMs back to back, each 4 KiB aligned, one contiguous range per ROM, read in place |
 | Settings | `0xA00000` | 8 KiB | firmware | Two sectors (A/B copies) |
@@ -20,7 +20,7 @@ Offsets are from the start of flash; the CPU sees flash at `0x10000000 + offset`
 - The firmware only erases or programs the **settings and save-slot** regions (`0xA00000` to `0xC00000`). Everything else is written from the PC. `pb_flash_erase_allowed()` and `pb_flash_program_allowed()` in the header encode this (inside the writable area, sector or page aligned, no arithmetic overflow); all flash writes must check them (CLAUDE.md hard rule).
 - Erase works on 4 KiB sectors, programming on 256-byte pages.
 - ROMs are read in place through XIP; each ROM must be one contiguous range (that is why the ROM area is a flat index and not a filesystem).
-- The firmware region is 1 MiB. Until Phase 3's linker cap exists, a firmware larger than that would overwrite the index and ROM area; development builds that embed a ROM (about 1.3 MiB) are only for testing without the library.
+- The firmware region is 1 MiB and the linker enforces it: `ld/picoboy_memmap.ld.in` is a template whose `FLASH` length CMake fills in from `PB_FW_SIZE` in `storage/flash_layout.h` (so the number is not repeated anywhere). The normal firmware uses about 180 KB of it. Development builds that embed a ROM (about 1.3 MiB for Pokemon) get the whole user flash instead and would overwrite a library: they are for benchmarking and tests only.
 
 ## Capacity
 
