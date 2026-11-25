@@ -526,6 +526,115 @@ static void test_full_region(void) {
   CHECK(outside_unchanged());
 }
 
+static void test_delete(void) {
+  static uint8_t a1[32768], a2[32768], b1[8192], c1[300];
+  fill(a1, sizeof(a1), 1);
+  fill(a2, sizeof(a2), 2);
+  fill(b1, sizeof(b1), 3);
+  fill(c1, sizeof(c1), 4);
+  const uint32_t ka = 0xA0A0A0A0, kb = 0xB0B0B0B0, kc = 0xC0C0C0C0;
+
+  sim_reset_blank();
+  format_store(9);
+  uint32_t len = 0;
+  const long ops_before = g_sim.ops;
+  CHECK(pb_save_delete(&g_store, ka) == PB_SAVE_NOT_FOUND);  // nothing stored yet
+  CHECK(g_sim.ops == ops_before);                            // and no flash access for that
+
+  CHECK(pb_save_write(&g_store, ka, a1, sizeof(a1)) == PB_SAVE_OK);
+  CHECK(pb_save_write(&g_store, ka, a2, sizeof(a2)) == PB_SAVE_OK);  // two copies of A
+  CHECK(pb_save_write(&g_store, kb, b1, sizeof(b1)) == PB_SAVE_OK);
+  CHECK(pb_save_write(&g_store, kc, c1, sizeof(c1)) == PB_SAVE_OK);
+  CHECK(count_key(ka) == 2);
+
+  CHECK(pb_save_delete(&g_store, ka) == PB_SAVE_OK);
+  CHECK(count_key(ka) == 0);
+  CHECK(load(ka, &len) == PB_SAVE_NOT_FOUND);
+  CHECK(load_equals(kb, b1, sizeof(b1)) && load_equals(kc, c1, sizeof(c1)));  // others untouched
+  CHECK(open_store() == PB_SAVE_OK);                                        // and it persists
+  CHECK(count_key(ka) == 0 && load(ka, &len) == PB_SAVE_NOT_FOUND);
+  CHECK(load_equals(kb, b1, sizeof(b1)) && load_equals(kc, c1, sizeof(c1)));
+  CHECK(pb_save_delete(&g_store, ka) == PB_SAVE_NOT_FOUND);  // second delete: nothing left
+
+  // The space is reusable and a new save for the same game works.
+  CHECK(pb_save_write(&g_store, ka, a1, sizeof(a1)) == PB_SAVE_OK);
+  CHECK(load_equals(ka, a1, sizeof(a1)));
+
+  // Bad arguments.
+  pb_save_store_t closed;
+  memset(&closed, 0, sizeof(closed));
+  CHECK(pb_save_delete(&closed, ka) == PB_SAVE_ERR_ARGS);
+  CHECK(pb_save_delete(NULL, ka) == PB_SAVE_ERR_ARGS);
+
+  CHECK(g_sim.violations == 0);
+  CHECK(outside_unchanged());
+}
+
+// A chip that reports success but erases nothing must not make delete claim success.
+static void test_delete_silent_failure(void) {
+  static uint8_t a1[8192];
+  fill(a1, sizeof(a1), 7);
+  sim_reset_blank();
+  format_store(9);
+  CHECK(pb_save_write(&g_store, 0x77, a1, sizeof(a1)) == PB_SAVE_OK);
+  g_sim.protect = true;
+  CHECK(pb_save_delete(&g_store, 0x77) == PB_SAVE_ERR_FLASH);
+  g_sim.protect = false;
+  CHECK(load_equals(0x77, a1, sizeof(a1)));  // table was rescanned: the save is still known
+}
+
+// Power cut at every operation of a delete, with partial erases: afterwards the game has either
+// its newest save or none, and an older save never comes back.
+static void test_delete_power_loss(void) {
+  static uint8_t v1[16384], v2[16384], v3[16384];
+  fill(v1, sizeof(v1), 31);
+  fill(v2, sizeof(v2), 32);
+  fill(v3, sizeof(v3), 33);
+  const uint32_t key = 0xD1D1D1D1;
+
+  for (int copies = 1; copies <= 3; copies++) {  // 3 writes: still two copies, newest is v3
+    for (long k = 0; k <= 3; k++) {
+      for (int progress = 0; progress < 4; progress++) {
+        sim_reset_blank();
+        format_store(5);
+        CHECK(pb_save_write(&g_store, key, v1, sizeof(v1)) == PB_SAVE_OK);
+        if (copies >= 2) CHECK(pb_save_write(&g_store, key, v2, sizeof(v2)) == PB_SAVE_OK);
+        if (copies >= 3) CHECK(pb_save_write(&g_store, key, v3, sizeof(v3)) == PB_SAVE_OK);
+        const uint8_t *newest = copies == 1 ? v1 : (copies == 2 ? v2 : v3);
+        const long before = g_sim.ops;
+
+        g_sim.ops_until_fail = (int)k;
+        g_sim.progress = progress;
+        const pb_save_status_t st = pb_save_delete(&g_store, key);
+        const long used = g_sim.ops - before;
+        reboot();
+        CHECK(open_store() == PB_SAVE_OK);
+        uint32_t len = 0;
+        const pb_save_status_t ls = load(key, &len);
+        if (st == PB_SAVE_OK) {
+          CHECK(ls == PB_SAVE_NOT_FOUND);  // a delete that reported success is final
+        } else if (ls == PB_SAVE_OK) {
+          if (!(len == sizeof(v1) && memcmp(g_buf, newest, len) == 0)) {
+            printf("FAIL: delete interrupted (copies %d k %ld progress %d) brought back an older save\n", copies, k, progress);
+            failures++;
+          }
+        }
+        (void)used;
+        if (g_sim.violations) {
+          printf("FAIL: flash rule violated in delete (copies %d k %ld)\n", copies, k);
+          failures++;
+          g_sim.violations = 0;
+        }
+        CHECK(outside_unchanged());
+        // Deleting again after the power came back finishes the job.
+        CHECK(pb_save_delete(&g_store, key) != PB_SAVE_ERR_FLASH);
+        CHECK(load(key, &len) == PB_SAVE_NOT_FOUND);
+        CHECK(open_store() == PB_SAVE_OK && load(key, &len) == PB_SAVE_NOT_FOUND);
+      }
+    }
+  }
+}
+
 int main(void) {
   test_claim_and_foreign();
   test_roundtrip_and_alternation();
@@ -534,6 +643,9 @@ int main(void) {
   test_silent_write_failure();
   test_seq_wraparound();
   test_full_region();
+  test_delete();
+  test_delete_silent_failure();
+  test_delete_power_loss();
 
   CHECK(outside_unchanged());  // after the last test (the others check as they go)
   CHECK(g_sim.violations == 0);

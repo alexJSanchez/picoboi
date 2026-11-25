@@ -46,3 +46,31 @@ void lm_format_bytes(uint32_t bytes, char *out, size_t out_size) {
   else
     snprintf(out, out_size, "%uB", (unsigned)bytes);
 }
+
+void lm_hold_init(lm_hold_t *h) {
+  h->holding = false;
+  h->fired = false;
+  h->start_ms = 0;
+}
+
+bool lm_hold_update(lm_hold_t *h, bool down, uint32_t now_ms, uint32_t hold_ms) {
+  if (!down) {
+    h->holding = false;
+    h->fired = false;
+    return false;
+  }
+  if (!h->holding) {
+    h->holding = true;
+    h->start_ms = now_ms;
+    return false;
+  }
+  if (!h->fired && now_ms - h->start_ms >= hold_ms) {
+    h->fired = true;
+    return true;
+  }
+  return false;
+}
+
+uint32_t lm_hold_elapsed(const lm_hold_t *h, uint32_t now_ms) {
+  return h->holding ? now_ms - h->start_ms : 0;
+}

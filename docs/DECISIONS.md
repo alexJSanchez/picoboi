@@ -304,3 +304,12 @@ Serves Phase 3 acceptance ("ROMs flashed via UF2 appear in the list and launch; 
 - Licence texts of the dependencies are kept in `licenses/` and shipped in the release zip, because the firmware contains their code.
 - Releases: pushing a `v*` tag runs `.github/workflows/release.yml`, which builds the default firmware and publishes only `picoboy.uf2`, a checksum and the licence zip. It refuses to publish if `PB_EMBED_ROM` is set or the binary is over 400,000 bytes. **The workflow has not yet run on GitHub** (only its check was run locally).
 - Never published: `library.uf2`, or any firmware built with a ROM embedded.
+
+### 2026-11-25 — Delete one game's save from the game list
+
+Serves the Phase 4 save mechanism (author's request after V1; not a numbered backlog item). Chosen by the author: per-game delete, triggered by a button combination in the list. Nothing about the flash layout or the save format changed.
+
+- **Storage:** new `pb_save_delete(store, key)` in `storage/save_store.c` erases every copy of that game's save (header sector first, then the payload), reads the header back to check it is blank, and removes the copy from the table. It never touches the flash outside the settings and save regions (same `pb_flash_erase_allowed` guard as saving).
+- **Power-cut rule:** copies are erased oldest first, newest last. If power goes in the middle, the game keeps its newest save (the delete can be repeated) or has none; an older save never comes back. Host tests cut the power at every flash operation with partial erases, for 1, 2 and 3 saves written. Deliberately reversing the order makes those tests fail, so they do test it. A chip that reports success without erasing is caught (the table is rescanned and `PB_SAVE_ERR_FLASH` returned).
+- **App:** `saves_delete(key)` refuses to run while a game is running or saving is not ready. The launcher shows the option only for games that have a save, needs X+B held for 2 seconds with no other button down (`lm_hold_*` in `launcher_model`, host-tested incl. clock wrap-around), then asks `DELETE THIS SAVE?` (A deletes, B keeps). A cannot start a game while X or B is held.
+- **Not verified:** none of this has run on a device. It is listed in `docs/HARDWARE_TESTS.md` (D1 to D9). The erase takes about 9 sectors per copy for a 32 KiB save; the time per delete is not measured. The firmware compiles; no RAM was added beyond a few bytes (no new buffers), so `docs/MEMORY_BUDGET.md` was not regenerated.

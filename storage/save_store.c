@@ -271,3 +271,25 @@ pb_save_status_t pb_save_write(pb_save_store_t *s, uint32_t key, const uint8_t *
   }
   return PB_SAVE_OK;
 }
+
+pb_save_status_t pb_save_delete(pb_save_store_t *s, uint32_t key) {
+  if (!s || !s->ready) return PB_SAVE_ERR_ARGS;
+  bool any = false;
+  for (;;) {
+    // The oldest remaining copy of this key (a delete interrupted half way must leave the newest).
+    int oldest = -1;
+    for (uint32_t i = 0; i < s->n_copies; i++)
+      if (s->copies[i].key == key && (oldest < 0 || seq_newer(s->copies[oldest].seq, s->copies[i].seq))) oldest = (int)i;
+    if (oldest < 0) return any ? PB_SAVE_OK : PB_SAVE_NOT_FOUND;
+
+    const uint32_t base = slot_offset(s->copies[oldest].first_sector);
+    const uint32_t len = s->copies[oldest].n_sectors * PB_FLASH_SECTOR_SIZE;
+    if (!pb_flash_erase_allowed(base, len) || !s->ops.erase(s->ops.ctx, base, len) ||
+        !is_blank(s->ops.read(s->ops.ctx, base), PB_SAVE_HEADER_SIZE)) {
+      scan(s);  // the flash is the truth; the table may now be out of date
+      return PB_SAVE_ERR_FLASH;
+    }
+    remove_copy(s, (uint32_t)oldest);
+    any = true;
+  }
+}

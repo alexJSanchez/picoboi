@@ -25,8 +25,38 @@ static void check_window(const lm_t *m, uint32_t rows, int line) {
   if (m->count <= rows && m->top != 0) { printf("FAIL line %d: needless scrolling\n", line); failures++; }
 }
 
+static void test_hold(void) {
+  lm_hold_t h;
+  lm_hold_init(&h);
+  CHECK(!lm_hold_update(&h, false, 0, 2000));
+  CHECK(!lm_hold_update(&h, true, 100, 2000));    // starts at 100
+  CHECK(lm_hold_elapsed(&h, 600) == 500);
+  CHECK(!lm_hold_update(&h, true, 2099, 2000));   // 1999 ms: not yet
+  CHECK(lm_hold_update(&h, true, 2100, 2000));    // 2000 ms: fires
+  CHECK(!lm_hold_update(&h, true, 2200, 2000));   // only once
+  CHECK(!lm_hold_update(&h, true, 9000, 2000));
+  CHECK(!lm_hold_update(&h, false, 9100, 2000));  // released: re-armed, no progress
+  CHECK(lm_hold_elapsed(&h, 9200) == 0);
+  CHECK(!lm_hold_update(&h, true, 9200, 2000));
+  CHECK(lm_hold_update(&h, true, 11200, 2000));   // can fire again after a release
+  // Letting go early cancels: a later press starts from zero.
+  lm_hold_init(&h);
+  CHECK(!lm_hold_update(&h, true, 0, 2000));
+  CHECK(!lm_hold_update(&h, true, 1500, 2000));
+  CHECK(!lm_hold_update(&h, false, 1600, 2000));
+  CHECK(!lm_hold_update(&h, true, 1700, 2000));
+  CHECK(!lm_hold_update(&h, true, 3600, 2000));   // 1900 ms since the new start
+  CHECK(lm_hold_update(&h, true, 3700, 2000));
+  // The clock wraps around 2^32 without a false or missed trigger.
+  lm_hold_init(&h);
+  CHECK(!lm_hold_update(&h, true, 0xFFFFFF00u, 2000));
+  CHECK(!lm_hold_update(&h, true, 1000, 2000));   // 1256 ms later across the wrap
+  CHECK(lm_hold_update(&h, true, 1800, 2000));    // 2056 ms
+}
+
 int main(void) {
   lm_t m;
+  test_hold();
 
   // Empty list: moving does nothing and nothing breaks.
   lm_init(&m, 0);

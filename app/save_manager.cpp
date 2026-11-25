@@ -188,6 +188,18 @@ uint32_t saves_game_count() {
   return n;
 }
 
+bool saves_delete(uint32_t key) {
+  if (g_state != SaveState::Ready || g_in_game) return false;
+  const pb_save_status_t st = pb_save_delete(&g_store, key);
+  if (st == PB_SAVE_OK) {
+    printf("saves: deleted the save for ROM %08x\n", (unsigned)key);
+    return true;
+  }
+  g_last_error = (int)st;
+  printf("saves: delete for ROM %08x: status %d\n", (unsigned)key, (int)st);
+  return false;
+}
+
 void saves_tick(const pb_core_t *core) {
   if (!g_in_game || g_state != SaveState::Ready || g_ram_size == 0) return;
   const uint32_t now = picosystem::time();

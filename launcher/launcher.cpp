@@ -29,6 +29,12 @@ lm_t g_model;
 uint32_t g_max_ram = 0;
 char g_message[48] = "";
 
+// Deleting a save: hold X + B for DELETE_HOLD_MS on a game that has one, then confirm with A.
+constexpr uint32_t DELETE_HOLD_MS = 2000;
+lm_hold_t g_delete_hold;
+bool g_confirm_delete = false;
+pb_lib_entry_t g_confirm_entry;
+
 const char *status_text(pb_lib_status_t s) {
   switch (s) {
     case PB_LIB_EMPTY: return "No games on this device yet.";
@@ -61,6 +67,8 @@ void launcher_init(uint32_t max_cart_ram) {
   g_status = pb_lib_open(&g_lib, (const uint8_t *)(PB_FLASH_XIP_BASE + PB_LIB_INDEX_OFFSET),
                          PB_LIB_INDEX_SIZE, &g_bad_entry);
   lm_init(&g_model, g_status == PB_LIB_OK ? g_lib.count : 0);
+  lm_hold_init(&g_delete_hold);
+  g_confirm_delete = false;
   printf("launcher: library %s, %u games\n", g_status == PB_LIB_OK ? "ok" : status_text(g_status),
          (unsigned)g_model.count);
 }
@@ -72,6 +80,29 @@ void launcher_set_message(const char *text) {
 bool launcher_update(pb_lib_entry_t *out) {
   const uint8_t b = ui_buttons_pressed();
   if (g_model.count == 0) return false;
+
+  if (g_confirm_delete) {  // "DELETE SAVE?": only A (yes) and B (no) do anything
+    if (b & UI_A) {
+      g_confirm_delete = false;
+      snprintf(g_message, sizeof(g_message), saves_delete(g_confirm_entry.rom_crc32) ? "Save deleted." : "Could not delete the save.");
+    } else if (b & UI_B) {
+      g_confirm_delete = false;
+      g_message[0] = 0;
+    }
+    return false;
+  }
+
+  // Hold X + B (nothing else) for two seconds on a game that has a save.
+  pb_lib_entry_t sel;
+  pb_lib_get(&g_lib, g_model.selected, &sel);
+  const uint8_t down = ui_buttons_down();
+  const bool combo = (down == (UI_X | UI_B)) && saves_has_save(sel.rom_crc32);
+  if (lm_hold_update(&g_delete_hold, combo, ui_millis(), DELETE_HOLD_MS)) {
+    g_confirm_entry = sel;
+    g_confirm_delete = true;
+    return false;
+  }
+  if (down & (UI_X | UI_B)) return false;  // while the combo is being held, A must not start a game
 
   if (b & UI_UP) lm_move(&g_model, -1, ROWS);
   if (b & UI_DOWN) lm_move(&g_model, 1, ROWS);
@@ -102,6 +133,19 @@ void launcher_draw_save_prompt() {
 }
 
 void launcher_draw() {
+  if (g_confirm_delete) {
+    ui_clear(BG);
+    ui_text(10, 8, "PICOBOY", TITLE);
+    ui_rect(10, 22, 220, 1, HINT);
+    draw_centered(52, "DELETE THIS SAVE?", WARN);
+    char name[22];
+    snprintf(name, sizeof(name), "%s", g_confirm_entry.name);
+    draw_centered(84, name, HILITE_TX);
+    draw_centered(110, "It cannot be undone.", NORMAL);
+    draw_centered(138, "A: delete the save", HILITE_TX);
+    draw_centered(158, "B: keep it", HILITE_TX);
+    return;
+  }
   ui_clear(BG);
   ui_text(10, 8, "PICOBOY", TITLE);
 #ifdef PB_SAVES
@@ -168,5 +212,16 @@ void launcher_draw() {
     ui_text(10, 206, detail, HINT);
   }
   if (g_message[0]) ui_text(10, 192, g_message, WARN);
-  ui_text(10, 224, "UP/DOWN choose    A start", HINT);
+  {
+    const uint32_t held = lm_hold_elapsed(&g_delete_hold, ui_millis());
+    if (held > 0 && !g_confirm_delete) {  // the combo is being held: show how far it is
+      char hint[40];
+      snprintf(hint, sizeof(hint), "Keep holding X+B to delete save %u%%", (unsigned)(held >= DELETE_HOLD_MS ? 100 : held * 100 / DELETE_HOLD_MS));
+      ui_text(10, 224, hint, WARN);
+    } else if (saves_has_save(cur.rom_crc32)) {
+      ui_text(10, 224, "A start   hold X+B: delete save", HINT);
+    } else {
+      ui_text(10, 224, "UP/DOWN choose    A start", HINT);
+    }
+  }
 }

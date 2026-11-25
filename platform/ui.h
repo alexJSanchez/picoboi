@@ -21,7 +21,12 @@ enum : uint8_t {
   UI_DOWN = 2,
   UI_A = 4,
   UI_B = 8,
+  UI_X = 16,
 };
 uint8_t ui_buttons_pressed();
+// Buttons that are held down right now (levels, not edges); same bits as above.
+uint8_t ui_buttons_down();
+// Milliseconds since boot (wraps after about 49 days).
+uint32_t ui_millis();
 
 #endif

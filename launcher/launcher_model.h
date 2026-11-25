@@ -33,6 +33,23 @@ const char *lm_unavailable_reason(const pb_lib_entry_t *e, uint32_t max_ram);
 // Formats a byte count as a short label: "512B", "8K", "128K", "1M". `out` needs 8 bytes.
 void lm_format_bytes(uint32_t bytes, char *out, size_t out_size);
 
+// A button combination that must be held for a while (used to delete a save, so that it cannot
+// happen by accident). Clocks are 32-bit milliseconds and may wrap.
+typedef struct {
+  bool holding;
+  bool fired;
+  uint32_t start_ms;
+} lm_hold_t;
+
+void lm_hold_init(lm_hold_t *h);
+
+// Call once per frame with whether the combination is down. Returns true exactly once, when it has
+// been held for `hold_ms`; it must be released before it can fire again.
+bool lm_hold_update(lm_hold_t *h, bool down, uint32_t now_ms, uint32_t hold_ms);
+
+// Milliseconds the combination has been held so far (0 if not held), for a progress display.
+uint32_t lm_hold_elapsed(const lm_hold_t *h, uint32_t now_ms);
+
 #ifdef __cplusplus
 }
 #endif

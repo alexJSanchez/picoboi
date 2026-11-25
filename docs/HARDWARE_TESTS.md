@@ -83,4 +83,21 @@ Firmware: `build-lib/picoboy.uf2` (the default build). The library stays as it i
 
 Record the save time per game in `docs/DECISIONS.md`.
 
+### Phase 4 follow-up: delete one game's save (not yet run on hardware)
+
+Needs two games that have saves (only games with battery RAM can have one, for example Pokemon Yellow and another battery game).
+
+| # | Action | Expected |
+|---|---|---|
+| D1 | In the list, highlight a game with a green `saved`. The bottom line reads `A start   hold X+B: delete save`. | Shown only for games that have a save. |
+| D2 | Hold X+B for about 1 s, then let go. | Bottom line counts up (`Keep holding X+B to delete save 50%`), then returns to normal. Nothing deleted. |
+| D3 | Hold X+B for 2 s. | The screen `DELETE THIS SAVE?` with the game's name appears. |
+| D4 | Press B. | Back to the list, the game still shows `saved`; starting it offers CONTINUE. |
+| D5 | Hold X+B for 2 s again, press A. | A short pause (flash erase, under about 1 s), then `Save deleted.` The green `saved` is gone and `SAVES ON n stored` is one lower. |
+| D6 | Start that game. | `NO SAVE YET`, a fresh game (no CONTINUE). The other game's save is still there. |
+| D7 | Power off and on, look at the list. | The deleted game still has no `saved`; the other game still has it. |
+| D8 | While holding X+B, also press A. | The game does not start. |
+| D9 | Power-cut test (needs the author): cut power during the erase after D3/A, several times. | After restart the game either still has its newest save or has none; never an older save. Pending: host tests cover this against a simulated flash only. |
+
+
 Result of the Phase 4 test, 2026-11-25 (author's report on the final firmware, commit 09dcc17): the game's own save is still there after turning the PicoSystem off and on ("works beautifully"). Not exercised: the power-cut test (row 8), Zelda's save, the "play without saving" answer (row 7), and the failure paths ("SAVE FAILED", full save area).

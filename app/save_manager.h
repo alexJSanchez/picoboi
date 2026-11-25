@@ -10,6 +10,7 @@
 //   game start  saves_begin_game()      loads the game's save into its cart RAM
 //   each frame  saves_tick()            saves after the game has been quiet for 2 s
 //   game end    saves_end_game()        saves at once if anything is unsaved
+//   game list   saves_delete()          deletes one game's save (the player confirmed)
 //
 // While a save is written (about half a second for a 32 KiB save) emulation pauses and the
 // speaker is silenced.
@@ -48,6 +49,11 @@ bool saves_begin_game(uint32_t key, uint8_t *ram, uint32_t ram_size, const char 
 bool saves_has_save(uint32_t key);
 uint32_t saves_game_count();
 
+// Deletes the stored save for this ROM (both copies). Only from the game list, never while a game
+// is running. Returns true if a save was deleted; false if there was none, saving is not ready, or
+// the flash refused (then saves_last_error() holds the status). Takes a moment: flash erase.
+bool saves_delete(uint32_t key);
+
 void saves_tick(const pb_core_t *core);
 void saves_end_game(const pb_core_t *core);
 
@@ -64,6 +70,7 @@ inline void saves_decline() {}
 inline bool saves_begin_game(uint32_t, uint8_t *, uint32_t, const char *) { return false; }
 inline bool saves_has_save(uint32_t) { return false; }
 inline uint32_t saves_game_count() { return 0; }
+inline bool saves_delete(uint32_t) { return false; }
 inline void saves_tick(const pb_core_t *) {}
 inline void saves_end_game(const pb_core_t *) {}
 inline const char *saves_overlay(uint32_t, bool *) { return nullptr; }

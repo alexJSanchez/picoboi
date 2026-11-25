@@ -26,6 +26,18 @@ int ui_text_width(const char *s) {
   return (int)w;
 }
 
+uint8_t ui_buttons_down() {
+  uint8_t m = 0;
+  if (button(UP)) m |= UI_UP;
+  if (button(DOWN)) m |= UI_DOWN;
+  if (button(A)) m |= UI_A;
+  if (button(B)) m |= UI_B;
+  if (button(X)) m |= UI_X;
+  return m;
+}
+
+uint32_t ui_millis() { return time(); }
+
 uint8_t ui_buttons_pressed() {
   uint8_t m = 0;
   if (pressed(UP)) m |= UI_UP;

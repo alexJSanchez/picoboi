@@ -88,6 +88,13 @@ pb_save_status_t pb_save_load(pb_save_store_t *s, uint32_t key, uint8_t *buf, ui
 // Saves `len` bytes for `key`. Safe against power loss at any point.
 pb_save_status_t pb_save_write(pb_save_store_t *s, uint32_t key, const uint8_t *data, uint32_t len);
 
+// Deletes every stored copy of the save for `key` (nothing else is touched). PB_SAVE_NOT_FOUND if
+// there was none (no flash access happens). Safe against power loss: the oldest copy goes first and
+// the newest last, so an interrupted delete never brings an older save back; it leaves either the
+// newest save intact (try again) or nothing. Each copy is erased starting with its header sector,
+// then read back. On PB_SAVE_ERR_FLASH the table is rescanned from flash.
+pb_save_status_t pb_save_delete(pb_save_store_t *s, uint32_t key);
+
 #ifdef __cplusplus
 }
 #endif

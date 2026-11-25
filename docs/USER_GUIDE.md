@@ -66,6 +66,12 @@ Use the game's **own save command** (for example the SAVE entry in the Pokémon 
 
 If your PicoSystem has never been used for anything else, you will not see this question.
 
+### Deleting a game's save
+
+In the game list, highlight a game that shows a green **saved** and **hold X and B together for two seconds** (nothing else pressed; the bottom line shows how far you are). A question appears: **A** deletes that game's save for good, **B** keeps it. Other games' saves are not touched. After deleting, the game starts fresh the next time.
+
+Letting go before two seconds cancels, and starting a game with A is blocked while X or B is held, so it cannot happen by accident.
+
 ### Adding or removing games later
 
 Make a new `library.uf2` with the games you want (step 4) and copy it as in step 5. It replaces the whole list. **Your saves are kept**: a save belongs to the game's file contents, so the same game finds its save again.
