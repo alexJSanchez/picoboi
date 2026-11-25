@@ -100,6 +100,11 @@ void pb_core_set_buttons(pb_core_t *c, uint8_t mask) {
 
 void pb_core_run_frame(pb_core_t *c) { gb_run_frame(&impl(c)->gb); }
 
+void pb_core_set_rendering(pb_core_t *c, bool on) {
+  // Peanut-GB skips all pixel work when the line callback is NULL.
+  impl(c)->gb.display.lcd_draw_line = on ? draw_line_cb : NULL;
+}
+
 uint32_t pb_core_cart_ram_needed(const pb_core_t *c) {
   // gb_get_save_size() takes a non-const context but does not modify it.
   return (uint32_t)gb_get_save_size((struct gb_s *)&impl_c(c)->gb);

@@ -1,7 +1,7 @@
 // Headless host runner for core/: loads a ROM file, runs frames, collects serial
 // output and optionally dumps the last frame as a BMP.
 //
-//   core_run <rom.gb> <max_frames> [--expect TEXT] [--dump out.bmp]
+//   core_run <rom.gb> <max_frames> [--expect TEXT] [--dump out.bmp] [--render-every N]
 //
 // Exit codes: 0 ok (and TEXT seen, if --expect given), 1 test failed or timed out,
 // 2 usage / init error, 77 ROM file missing (ctest reports "skipped").
@@ -18,11 +18,13 @@ typedef struct {
   char serial[SERIAL_CAP];
   size_t serial_len;
   int errors;
+  long lines_drawn;
 } ctx_t;
 
 static void on_line(void *user, const uint8_t px[PB_SCREEN_W], uint8_t line) {
   ctx_t *c = (ctx_t *)user;
   if (line >= PB_SCREEN_H) return;
+  c->lines_drawn++;
   for (int x = 0; x < PB_SCREEN_W; x++) c->fb[line * PB_SCREEN_W + x] = px[x] & 3;
 }
 
@@ -94,9 +96,11 @@ int main(int argc, char **argv) {
     return 2;
   }
   const char *expect = NULL, *dump = NULL;
+  long render_every = 1;
   for (int i = 3; i + 1 < argc; i += 2) {
     if (!strcmp(argv[i], "--expect")) expect = argv[i + 1];
     else if (!strcmp(argv[i], "--dump")) dump = argv[i + 1];
+    else if (!strcmp(argv[i], "--render-every")) render_every = atol(argv[i + 1]);
     else {
       fprintf(stderr, "unknown option %s\n", argv[i]);
       return 2;
@@ -131,6 +135,8 @@ int main(int argc, char **argv) {
   long frame = 0;
   int found = 0, failed = 0;
   for (; frame < max_frames; frame++) {
+    // Only every Nth frame is rendered (rendering off = no scanline callbacks).
+    pb_core_set_rendering(&core, render_every <= 1 || frame % render_every == render_every - 1);
     pb_core_run_frame(&core);
     if (expect && strstr(ctx.serial, expect)) { found = 1; break; }
     if (strstr(ctx.serial, "Failed")) { failed = 1; break; }

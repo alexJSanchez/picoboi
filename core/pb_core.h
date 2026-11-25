@@ -79,6 +79,10 @@ typedef struct pb_core {
 pb_status_t pb_core_init(pb_core_t *c, const pb_core_config_t *cfg);
 void pb_core_set_buttons(pb_core_t *c, uint8_t mask);  // PB_BTN_* bits, 1 = pressed
 void pb_core_run_frame(pb_core_t *c);                  // runs until one frame is complete
+// When off, frames still run with full emulation accuracy but no scanlines are produced
+// (draw_line is not called and pixel work is skipped). Used to catch up on frames the
+// display cannot show. Default after init: on.
+void pb_core_set_rendering(pb_core_t *c, bool on);
 
 // Cart RAM bytes the loaded cartridge needs (valid after a successful pb_core_init).
 uint32_t pb_core_cart_ram_needed(const pb_core_t *c);

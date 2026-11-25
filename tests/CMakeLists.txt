@@ -20,4 +20,15 @@ add_test(NAME cpu_instrs
 add_test(NAME dmg_acid2_runs
          COMMAND core_run ${ROMS}/dmg-acid2.gb 200 --dump ${CMAKE_CURRENT_BINARY_DIR}/dmg-acid2.bmp)
 
-set_tests_properties(cpu_instrs dmg_acid2_runs PROPERTIES SKIP_RETURN_CODE 77)
+# Same ROM with only every 3rd frame rendered (the 40 Hz panel case): emulation must be
+# unaffected and the skipped frames must not draw.
+add_test(NAME cpu_instrs_render_every_3
+         COMMAND core_run ${ROMS}/cpu_instrs.gb 8000 --expect "Passed all tests" --render-every 3)
+
+set_tests_properties(cpu_instrs dmg_acid2_runs cpu_instrs_render_every_3 PROPERTIES SKIP_RETURN_CODE 77)
+
+# Pure-logic unit tests (no ROMs needed).
+add_executable(test_pacer test_pacer.c ${ROOT}/core/pb_pacer.c)
+target_include_directories(test_pacer PRIVATE ${ROOT}/core)
+target_compile_options(test_pacer PRIVATE -Wall -Wextra)
+add_test(NAME pacer COMMAND test_pacer)
