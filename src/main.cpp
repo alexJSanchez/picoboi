@@ -58,6 +58,19 @@ Stat g_flip_us;    // SDK: time from flip start until the transfer finished
 Stat g_blit_us;    // draw(): copying/scaling the off-screen frame into the framebuffer
 uint32_t g_updates = 0;
 uint32_t g_emulated = 0;      // Game Boy frames emulated in this window
+uint32_t g_drawn_updates = 0;  // refreshes in this window in which a new picture was drawn
+uint32_t g_dropped = 0;        // frames skipped because they did not fit the time budget
+
+// Time budget for emulation in one display refresh: refresh period (about 25.2 ms at the
+// panel's 40 Hz) minus the blit (about 1 ms) minus a safety margin. See docs/DECISIONS.md.
+constexpr uint32_t UPDATE_BUDGET_US = 23000;
+// Running estimates of the cost of one frame without / with drawing. They hold the recent
+// peak and decay slowly, so a sudden heavier scene is respected before it is measured again.
+uint32_t g_cost_norender_us = 10000;
+uint32_t g_cost_render_us = 17000;
+inline void track_cost(uint32_t &est, uint32_t sample) {
+  est = sample > est ? sample : est - est / 32;
+}
 uint32_t g_window_start_us = 0;
 uint32_t g_last_start_us = 0;
 
@@ -176,17 +189,25 @@ void update(uint32_t) {
     printf("audio %s\n", audio_enabled() ? "on" : "muted");
   }
 
-  const uint32_t due = pb_pacer_frames_due(&g_pacer, start);
-  for (uint32_t i = 0; i < due; i++) {
-    pb_core_set_rendering(&g_core, i == due - 1);  // show only the newest frame
+  // Run the frames that are due, as many as fit the time budget; draw only the last one, and
+  // only if there is time for that too (see pb_pacer_plan).
+  const pb_plan_t plan = pb_pacer_plan(&g_pacer, start, g_cost_norender_us, g_cost_render_us,
+                                       UPDATE_BUDGET_US);
+  for (uint32_t i = 0; i < plan.frames; i++) {
+    const bool render = plan.render && i == plan.frames - 1;
+    pb_core_set_rendering(&g_core, render);
     const uint32_t t0 = time_us();
     pb_core_run_frame(&g_core);
 #ifdef PB_AUDIO_TEST_TONE
     audio_push_test_tone();
 #endif
-    g_emu_us.add(time_us() - t0);
+    const uint32_t dt = time_us() - t0;
+    g_emu_us.add(dt);
+    track_cost(render ? g_cost_render_us : g_cost_norender_us, dt);
   }
-  g_emulated += due;
+  g_emulated += plan.frames;
+  g_dropped += plan.dropped;
+  if (plan.frames && plan.render) g_drawn_updates++;
   g_update_us.add(time_us() - start);
   g_flip_us.add(stats.flip_us);
   if (g_updates % 80 == 40) audio_print_diag();  // about every 3 s
@@ -195,10 +216,12 @@ void update(uint32_t) {
     const uint32_t elapsed_us = time_us() - g_window_start_us;
     const uint32_t fps_x100 = (uint32_t)(((uint64_t)g_emulated * 100000000u) / elapsed_us);
     const uint32_t refresh_x100 = (uint32_t)(((uint64_t)g_updates * 100000000u) / elapsed_us);
-    printf("bench updates=%u emulated=%u gb_fps=%u.%02u screen_hz=%u.%02u\n",
+    printf("bench updates=%u emulated=%u gb_fps=%u.%02u screen_hz=%u.%02u drawn=%u dropped=%u"
+           " est_nr=%u est_r=%u\n",
            (unsigned)g_updates, (unsigned)g_emulated, (unsigned)(fps_x100 / 100),
            (unsigned)(fps_x100 % 100), (unsigned)(refresh_x100 / 100),
-           (unsigned)(refresh_x100 % 100));
+           (unsigned)(refresh_x100 % 100), (unsigned)g_drawn_updates, (unsigned)g_dropped,
+           (unsigned)g_cost_norender_us, (unsigned)g_cost_render_us);
     printf("  emu_us    min=%u avg=%u max=%u\n", (unsigned)g_emu_us.min,
            (unsigned)g_emu_us.avg(), (unsigned)g_emu_us.max);
     printf("  update_us avg=%u max=%u | flip_us avg=%u max=%u | period_us avg=%u max=%u\n",
@@ -221,6 +244,8 @@ void update(uint32_t) {
     g_blit_us.reset();
     g_updates = 0;
     g_emulated = 0;
+    g_drawn_updates = 0;
+    g_dropped = 0;
   }
 }
 

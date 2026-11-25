@@ -83,8 +83,18 @@ void display_set_scale(display_scale_t scale) {
 
 void display_draw_line(void *, const uint8_t px[160], uint8_t line) {
   if (line >= GB_H) return;
-  uint8_t *dst = g_shade + line * GB_W;
-  for (int x = 0; x < GB_W; x++) dst[x] = px[x] & 3;
+  // Keep only the shade bits (0..3) of each pixel. The destination row start is 4-byte
+  // aligned (160 is a multiple of 4), so when the emulator's array is aligned too we do four
+  // pixels per 32-bit operation; the Cortex-M0+ faults on unaligned word access, so
+  // otherwise fall back to bytes.
+  if ((((uintptr_t)px) & 3u) == 0) {
+    uint32_t *dst = (uint32_t *)(g_shade + line * GB_W);
+    const uint32_t *src = (const uint32_t *)px;
+    for (int i = 0; i < GB_W / 4; i++) dst[i] = src[i] & 0x03030303u;
+  } else {
+    uint8_t *dst = g_shade + line * GB_W;
+    for (int x = 0; x < GB_W; x++) dst[x] = px[x] & 3;
+  }
 }
 
 void display_present() {
