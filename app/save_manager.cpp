@@ -7,6 +7,7 @@
 #include "picosystem.hpp"
 
 #include "audio.h"
+#include "crc32.h"
 #include "flash_ops.h"
 #include "save_policy.h"
 #include "save_store.h"
@@ -25,6 +26,8 @@ uint32_t g_ram_size = 0;
 
 uint32_t g_blocked_until_ms = 0;  // after a failed save, do not retry for a while
 bool g_blocked = false;
+uint32_t g_synced_crc = 0;      // CRC of the RAM as last loaded from or written to flash
+bool g_synced_valid = false;    // false: nothing stored yet for this game
 uint32_t g_overlay_until_ms = 0;
 const char *g_overlay_text = nullptr;
 bool g_overlay_error = false;
@@ -43,11 +46,23 @@ uint32_t new_store_id() {
 void flush(const pb_core_t *core) {
   const uint32_t now = picosystem::time();
   const uint32_t gen = pb_core_cart_ram_generation(core);
+
+  // The game rewrote its save RAM but the contents are what is already stored (or was loaded):
+  // nothing to save, so no flash write and no pause.
+  const uint32_t crc = pb_crc32(g_ram, g_ram_size);
+  if (g_synced_valid && crc == g_synced_crc) {
+    pb_savepol_saved(&g_pol, gen);
+    printf("save: RAM unchanged since the last save, nothing written\n");
+    return;
+  }
+
   audio_reset();  // flash writes stall the CPU: do not let the speaker loop stale sound
   const uint32_t t0 = time_us_32();
   const pb_save_status_t st = pb_save_write(&g_store, g_key, g_ram, g_ram_size);
   const uint32_t ms = (time_us_32() - t0) / 1000;
   if (st == PB_SAVE_OK) {
+    g_synced_crc = crc;
+    g_synced_valid = true;
     pb_savepol_saved(&g_pol, gen);
     g_blocked = false;
     show("SAVED", false, now, 1500);
@@ -120,6 +135,7 @@ bool saves_begin_game(uint32_t key, uint8_t *ram, uint32_t ram_size) {
   g_blocked = false;
   g_overlay_text = nullptr;
   pb_savepol_init(&g_pol, 0);  // the core starts counting at 0
+  g_synced_valid = false;
 
   if (g_state != SaveState::Ready || ram_size == 0) {
     if (ram_size != 0) show("SAVING IS OFF", true, picosystem::time(), 3000);
@@ -129,6 +145,8 @@ bool saves_begin_game(uint32_t key, uint8_t *ram, uint32_t ram_size) {
   const pb_save_status_t st = pb_save_load(&g_store, key, ram, ram_size, &len);
   if (st == PB_SAVE_OK) {
     printf("saves: loaded %u bytes for ROM %08x\n", (unsigned)len, (unsigned)key);
+    g_synced_crc = pb_crc32(ram, ram_size);  // what is stored now: later identical RAM needs no write
+    g_synced_valid = true;
     show("SAVE LOADED", false, picosystem::time(), 2500);
     return true;
   }
