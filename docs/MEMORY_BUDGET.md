@@ -2,7 +2,7 @@
 
 Numbers come from the linker output of a real build, not estimates. Replace them whenever the build changes (CLAUDE.md "definition of done").
 
-Build measured: commit `810b122` (emulator core with audio, speaker driver, embedded ROM, off-screen frame buffer, emulator code running from RAM, SDK defaults, 240x240, 250 MHz, Release `-O3`), pico-sdk 2.3.1, picosystem `9a26b2a`, Arm GNU 14.2.Rel1.
+Build measured: commit `09dcc17`, the V1 firmware (game list, saves on, emulator core with audio, speaker driver, off-screen frame buffer, emulator code running from RAM, SDK defaults, 240x240, 250 MHz, Release `-O3`), pico-sdk 2.3.1, picosystem `9a26b2a`, Arm GNU 14.2.Rel1.
 
 How to reproduce:
 ```sh
@@ -21,14 +21,15 @@ The picosystem linker script (`third_party/picosystem/libraries/memmap_picosyste
 | Emulator state `g_core` (`pb_core_t`, holds `struct gb_s` = 16,916 B) | 20,480 | 20.0 |
 | Off-screen Game Boy frame `g_shade` (160x144, 1 byte per pixel) | 23,040 | 22.5 |
 | Audio ring buffer `g_ring` (2,048 x 16-bit PWM levels) | 4,096 | 4.0 |
-| Other `.bss` (USB, SDK tables, etc.) | 5,096 | 5.0 |
-| **`.bss` total** | **200,920** | **196.2** |
-| `.data` (initialised data copied from flash at boot, **includes the emulator and audio code, 22 KB, running from RAM**) | 32,028 | 31.3 |
+| Save store `g_store` (up to 64 copies, 1 page buffer) | 1,568 | 1.5 |
+| Other `.bss` (USB, SDK tables, etc.) | 5,476 | 5.3 |
+| **`.bss` total** | **202,628** | **197.9** |
+| `.data` (initialised data copied from flash at boot, **includes the emulator and audio code, 22 KB, running from RAM**) | 32,332 | 31.6 |
 | `.ram_vector_table` | 192 | 0.2 |
 | `.heap` (reserved by the linker script) | 2,048 | 2.0 |
-| **Used in main RAM** | **235,188** | **229.7** |
+| **Used in main RAM** | **237,200** | **231.6** |
 | Main RAM capacity | 262,144 | 256.0 |
-| **Free in main RAM** | **26,956** | **26.3** |
+| **Free in main RAM** | **24,944** | **24.4** |
 | Core 0 stack (in SCRATCH_Y, separate from main RAM) | 2,048 | 2.0 |
 | SCRATCH_X free / SCRATCH_Y remaining | 4,096 / 2,048 | 4.0 / 2.0 |
 
@@ -46,7 +47,7 @@ The ROM is not in RAM: it is read-only data in flash and read in place through X
 | `.text` (code) | 106,816 |
 | `.rodata` (includes the 65,536-byte embedded test ROM and the 32,768-byte default sprite sheet) | 113,332 |
 | Other (exception tables, binary info) | 952 |
-| **Binary end** (`__flash_binary_end`, `0x100386f8`) | **231,160 (about 226 KiB)** |
+| **Firmware binary** (V1, `picoboy.bin`; the linker caps it at 1 MiB) | **186,264 (about 182 KiB)** |
 
 The 1 MiB firmware region in `docs/PLAN.md` is not yet enforced by the linker (Phase 3).
 
