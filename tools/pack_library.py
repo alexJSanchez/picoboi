@@ -12,6 +12,7 @@ index format is described in docs/FLASH_LAYOUT.md and implemented on the firmwar
 storage/rom_library.c. Never commit a ROM or a UF2 that contains one.
 """
 import argparse
+import glob
 import pathlib
 import re
 import struct
@@ -50,6 +51,31 @@ UF2_PAYLOAD = 256
 
 class PackError(Exception):
     pass
+
+
+def expand_inputs(args):
+    """Turns the ROM arguments into a list of file paths.
+
+    Windows shells (PowerShell, cmd) do not expand wildcards, so we do it here. A folder means
+    every .gb file in it; an argument with * ? or [ is a pattern; anything else is one file.
+    Arguments keep the order given; each expansion is sorted by name.
+    """
+    paths = []
+    for a in args:
+        p = pathlib.Path(a)
+        if p.is_dir():
+            found = sorted(q for q in p.iterdir() if q.is_file() and q.suffix.lower() == ".gb")
+            if not found:
+                raise PackError(f"{a}: no .gb files in this folder")
+            paths.extend(found)
+        elif any(c in a for c in "*?["):
+            found = sorted(pathlib.Path(m) for m in glob.glob(a) if pathlib.Path(m).is_file())
+            if not found:
+                raise PackError(f"{a}: no files match")
+            paths.extend(found)
+        else:
+            paths.append(p)
+    return paths
 
 
 # ---------------------------------------------------------------------------------------
@@ -224,7 +250,9 @@ def describe_flags(flags):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Pack Game Boy ROMs into a PicoBoy library UF2.")
-    ap.add_argument("roms", nargs="+", help=".gb files, in the order they should appear")
+    ap.add_argument("roms", nargs="+",
+                    help=".gb files, a folder (all its .gb files) or a pattern such as roms/*.gb, "
+                         "in the order they should appear")
     ap.add_argument("-o", "--output", default="library.uf2", help="UF2 file to write")
     ap.add_argument("--layout", default=str(pathlib.Path(__file__).resolve().parent.parent / "storage" / "flash_layout.h"),
                     help="path of flash_layout.h (default: the one in this repository)")
@@ -234,8 +262,7 @@ def main(argv=None):
     try:
         layout = load_layout(args.layout)
         roms = []
-        for p in args.roms:
-            path = pathlib.Path(p)
+        for path in expand_inputs(args.roms):
             roms.append((path.stem, path.read_bytes()))
         index, uf2, entries = pack(roms, layout)
     except (PackError, OSError) as exc:

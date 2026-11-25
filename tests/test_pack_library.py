@@ -140,6 +140,36 @@ class PackLibraryTests(unittest.TestCase):
             pl.pack([("a", eight_mib), ("b", one_mib)], LAYOUT)  # 9 MiB does not (area is 0x8FF000)
         self.assertIn("ROM area full", str(cm.exception))
 
+    def test_wildcards_and_folders_are_expanded_by_the_tool(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            d = pathlib.Path(d)
+            for name, rom in syn.GOLDEN_ROMS[:3]:
+                (d / f"{name}.gb").write_bytes(rom)
+            (d / "notes.txt").write_text("not a rom")
+
+            def names(ps):
+                return [p.name for p in ps]
+
+            # A folder: every .gb file, sorted, and not the .txt file.
+            self.assertEqual(names(pl.expand_inputs([str(d)])), ["mbc1.gb", "mbc3.gb", "tone.gb"])
+            # A pattern that the shell did not expand (as in Windows PowerShell).
+            self.assertEqual(names(pl.expand_inputs([str(d / "*.gb")])), ["mbc1.gb", "mbc3.gb", "tone.gb"])
+            self.assertEqual(names(pl.expand_inputs([str(d / "m*.gb")])), ["mbc1.gb", "mbc3.gb"])
+            # Plain file names keep the order given.
+            self.assertEqual(names(pl.expand_inputs([str(d / "tone.gb"), str(d / "mbc1.gb")])),
+                             ["tone.gb", "mbc1.gb"])
+            with self.assertRaises(pl.PackError):
+                pl.expand_inputs([str(d / "*.xyz")])
+            empty = d / "empty"
+            empty.mkdir()
+            with self.assertRaises(pl.PackError):
+                pl.expand_inputs([str(empty)])
+            # End to end through main() with a pattern, like the command that failed.
+            out = d / "lib.uf2"
+            self.assertEqual(pl.main([str(d / "*.gb"), "-o", str(out)]), 0)
+            self.assertTrue(out.exists())
+
     def test_cli_writes_files(self):
         import tempfile
         with tempfile.TemporaryDirectory() as d:
