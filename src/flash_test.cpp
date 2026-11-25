@@ -93,6 +93,41 @@ const char *marker_name(MarkerState s) {
   return s == M_VALID ? "valid" : (s == M_BLANK ? "blank" : "UNKNOWN DATA");
 }
 
+// ---- read-only map of the first 12 MiB: runs of blank (all 0xFF) and used 4 KiB sectors ----
+struct Run {
+  uint32_t start, end;  // flash offsets, [start, end)
+  bool blank;
+};
+constexpr unsigned MAX_RUNS = 64;
+Run g_runs[MAX_RUNS];
+unsigned g_n_runs = 0;
+bool g_runs_overflow = false;
+uint32_t g_used_sectors = 0;
+
+bool sector_blank(uint32_t offset) {
+  const uint32_t *w = (const uint32_t *)flash_at(offset);
+  for (unsigned i = 0; i < PB_FLASH_SECTOR_SIZE / 4; i++)
+    if (w[i] != 0xFFFFFFFFu) return false;
+  return true;
+}
+
+void scan_flash() {
+  for (uint32_t off = 0; off < PB_FLASH_USER_END; off += PB_FLASH_SECTOR_SIZE) {
+    const bool blank = sector_blank(off);
+    if (!blank) g_used_sectors++;
+    if (g_n_runs && g_runs[g_n_runs - 1].blank == blank) {
+      g_runs[g_n_runs - 1].end = off + PB_FLASH_SECTOR_SIZE;
+    } else if (g_n_runs < MAX_RUNS) {
+      g_runs[g_n_runs++] = {off, off + PB_FLASH_SECTOR_SIZE, blank};
+    } else {
+      g_runs_overflow = true;
+    }
+  }
+}
+
+// First bytes of the two areas that were not blank, to see what they are.
+uint8_t g_head_settings[16], g_head_saves[16];
+
 uint32_t g_next_print_ms = 0;
 
 }  // namespace
@@ -146,6 +181,11 @@ void flash_test_init() {
   for (unsigned i = 0; i < PB_FLASH_SECTOR_SIZE; i++)
     if (s[i] != 0xFF) g_rep.save_blank = false;
   g_rep.save_crc = pb_crc32(s, PB_FLASH_SECTOR_SIZE);
+
+  // 5. Read-only map of what is stored in the first 12 MiB, and a peek at the first bytes.
+  scan_flash();
+  memcpy(g_head_settings, flash_at(PB_SETTINGS_OFFSET), sizeof(g_head_settings));
+  memcpy(g_head_saves, flash_at(PB_SAVE_SLOTS_OFFSET), sizeof(g_head_saves));
 }
 
 void flash_test_update() {
@@ -171,6 +211,22 @@ void flash_test_update() {
   printf("\n");
   printf("flashtest: first save-area sector at 0x%06x: %s, crc32 %08x\n", (unsigned)PB_SAVE_SLOTS_OFFSET,
          g_rep.save_blank ? "blank" : "HAS DATA", (unsigned)g_rep.save_crc);
+
+  auto hex = [](const char *label, const uint8_t *b) {
+    printf("flashtest: first 16 bytes at %s:", label);
+    for (int i = 0; i < 16; i++) printf(" %02x", b[i]);
+    printf("  |");
+    for (int i = 0; i < 16; i++) printf("%c", (b[i] >= 0x20 && b[i] < 0x7F) ? b[i] : '.');
+    printf("|\n");
+  };
+  hex("settings 0xa00000", g_head_settings);
+  hex("save area 0xa02000", g_head_saves);
+
+  printf("flashtest: map of the first 12 MiB (%u of 3072 sectors hold data):\n", (unsigned)g_used_sectors);
+  for (unsigned i = 0; i < g_n_runs; i++)
+    printf("flashtest:   %-5s 0x%06x - 0x%06x  (%u KiB)\n", g_runs[i].blank ? "blank" : "USED",
+           (unsigned)g_runs[i].start, (unsigned)g_runs[i].end, (unsigned)((g_runs[i].end - g_runs[i].start) / 1024));
+  if (g_runs_overflow) printf("flashtest:   (map truncated: more than %u runs)\n", MAX_RUNS);
 }
 
 void flash_test_draw() {
@@ -206,5 +262,7 @@ void flash_test_draw() {
     put(line);
   }
   snprintf(line, sizeof(line), "SAVES: %s %08x", g_rep.save_blank ? "blank" : "DATA", (unsigned)g_rep.save_crc);
+  put(line);
+  snprintf(line, sizeof(line), "12 MiB: %u sectors used", (unsigned)g_used_sectors);
   put(line);
 }
