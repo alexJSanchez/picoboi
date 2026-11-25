@@ -24,3 +24,6 @@ tests/roms/
 .DS_Store
 Thumbs.db
 build-*/
+
+# Synthetic golden files for the tests (our own bytes, no ROM data)
+!tests/golden/*.bin
