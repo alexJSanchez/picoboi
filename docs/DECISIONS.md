@@ -234,3 +234,13 @@ Serves backlog item 13 (test the UF2 flashing approach on hardware with a throwa
 - **Rule going forward:** firmware must never erase or program a page in the settings or save regions that holds data it did not write itself, without an explicit confirmation from the author. Phase 4 (saves) must therefore include a first-use step that asks before claiming those regions (or a dedicated "prepare saves" action), not silently erase them.
 - This does not affect the library: the index and ROM area (`0x100000` and up) are only written by the PC tool's UF2, and earlier test builds that embedded a ROM already wrote over part of it.
 - Next in Phase 3: stage B of the hardware test (flash the synthetic library UF2 and verify the firmware CRC and ROM data), then the launcher.
+
+### 2026-11-25 — Phase 3: the UF2 library approach is verified on hardware (backlog item 13 done)
+
+Test firmware `PB_FLASH_TEST` (build of 11:11:19, image 147,880 bytes, CRC-32 a23a045c) and a library UF2 of three synthetic ROMs (32 KiB, 128 KiB, 256 KiB). Procedure in `docs/HARDWARE_TESTS.md`.
+
+- **Stage B (flash `flashtest_library.uf2` over the running test firmware):** the device restarted into the firmware; library sector `OK, 3 ROMs`; all three ROMs read back from flash through XIP with CRCs equal to the index (3 match, 0 mismatch). The firmware's CRC-32 reported by the device (`a23a045c`) is **identical to the CRC-32 computed on the PC from `picoboy.bin`**, so the library UF2 did not change a single byte of the firmware.
+- **Stage C (reflash the firmware UF2 over the library):** library still `OK, 3 ROMs`, all ROM CRCs still match, firmware CRC unchanged. So the everyday workflow works: new firmware builds can be flashed without redoing the library, and a new library without redoing the firmware.
+- **Result:** the plan's central assumption (a UF2 covering only the index and ROM area leaves the rest alone, and ROMs are read correctly in place) is confirmed on this device. [VERIFY from PLAN.md section 5 resolved.]
+- The settings marker was not written: the page at `0xA00000` holds unknown data on this device (see previous entry), and the test firmware refuses to overwrite it. So the first write to flash by our own code (`flash_safe_execute`) has **not** been exercised yet; that waits for Phase 4 and the author's confirmation to claim the save regions.
+- Observation: all 3,072 sectors of the first 12 MiB hold data (nothing is erased); the first bytes at `0xA00000` are `fa 08 00 00 f4 08 00 00`, at `0xA02000` `fd 08 00 00`; origin unknown.
