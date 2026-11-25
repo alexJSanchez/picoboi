@@ -54,3 +54,18 @@ add_executable(test_flash_layout test_flash_layout.c)
 target_include_directories(test_flash_layout PRIVATE ${ROOT}/storage)
 target_compile_options(test_flash_layout PRIVATE -Wall -Wextra)
 add_test(NAME flash_layout COMMAND test_flash_layout)
+
+# ROM library index: CRC-32 and the reader, checked against the golden file made by the PC tool.
+add_executable(test_rom_library test_rom_library.c ${ROOT}/storage/crc32.c ${ROOT}/storage/rom_library.c)
+target_include_directories(test_rom_library PRIVATE ${ROOT}/storage)
+target_compile_options(test_rom_library PRIVATE -Wall -Wextra)
+target_compile_definitions(test_rom_library PRIVATE GOLDEN_PATH="${CMAKE_CURRENT_LIST_DIR}/golden/index_v1.bin")
+add_test(NAME rom_library COMMAND test_rom_library)
+
+# The PC packing tool (needs Python 3; skipped with a message if it is not installed).
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_FOUND)
+  add_test(NAME pack_library COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/test_pack_library.py)
+else()
+  message(STATUS "Python 3 not found: pack_library tests are not registered")
+endif()

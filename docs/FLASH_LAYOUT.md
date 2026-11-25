@@ -27,6 +27,50 @@ Offsets are from the start of flash; the CPU sees flash at `0x10000000 + offset`
 - ROM area: 9,433,088 bytes, so for example eight 1 MiB games (Pokemon Red/Blue/Yellow) with room to spare.
 - Save slots: 2,088,960 bytes. A Pokemon save is 32 KiB; with two copies (A/B, PLAN.md section 5) that is 64 KiB per game, so about 31 games.
 
+## Library index format, version 1
+
+One 4 KiB sector at `0x100000`, little-endian. Written by `tools/pack_library.py`, read and validated in place by `storage/rom_library.c`. A golden file (`tests/golden/index_v1.bin`, made from synthetic ROMs) is checked by both the Python and the C tests, so the two sides cannot drift apart silently.
+
+Header (16 bytes):
+
+| Offset | Size | Field |
+|---|---|---|
+| 0 | 4 | magic `PBLB` |
+| 4 | 2 | version (1) |
+| 6 | 2 | entry count (0 to 85) |
+| 8 | 2 | entry size (48) |
+| 10 | 2 | reserved (0) |
+| 12 | 4 | CRC-32 of the entry bytes (`count * 48` bytes, standard zlib CRC-32) |
+
+Entry (48 bytes), starting at offset 16 + 48 * i:
+
+| Offset | Size | Field |
+|---|---|---|
+| 0 | 24 | name, printable ASCII, NUL terminated (from the ROM header title, else the file name) |
+| 24 | 4 | flash offset of the ROM (from the start of flash, 4 KiB aligned; CPU address = `0x10000000` + this) |
+| 28 | 4 | ROM size in bytes |
+| 32 | 4 | CRC-32 of the whole ROM file |
+| 36 | 4 | save RAM the cartridge needs in bytes (MBC2: 512) |
+| 40 | 2 | number of 16 KiB ROM banks |
+| 42 | 2 | flags (below) |
+| 44 | 1 | mapper: 0 none, 1, 2, 3, 5 = MBC number, `0xFF` = not supported |
+| 45 | 1 | cartridge type (header byte `0x147`) |
+| 46 | 2 | reserved (0) |
+
+The rest of the sector is `0xFF`.
+
+Flags: `0x01` unsupported cartridge type, `0x02` Game Boy Color only, `0x04` bad header (checksum, size code or RAM size code the core cannot use), `0x08` file size does not match the header, `0x10` colour-enhanced but runs as DMG (informational). The first four block launching. The mapper table is copied from Peanut-GB v1.3.0 (`gb_init`); the core stays the authority and refuses a cartridge it cannot run.
+
+What the firmware checks before using an index: not erased, magic, version, count and entry size, CRC, then for every entry: a printable non-empty name, size of at least `0x150`, sector-aligned offset inside the ROM area, the ROM (rounded up to whole sectors) ends inside the ROM area, and no two ROMs share a sector.
+
+### Making a library
+
+```sh
+python tools/pack_library.py pokemon_red.gb homebrew.gb -o library.uf2
+```
+
+Hold X while powering on, then copy `library.uf2` onto the RPI-RP2 drive. The UF2 covers only the index sector and the ROM area, whole sectors, in ascending order. **Do not share a UF2 that contains ROMs** (CLAUDE.md). [VERIFY on hardware that it leaves the firmware and the saves alone.]
+
 ## What is not decided or verified yet
 
 - Whether the UF2 trick (the bootloader only writes the blocks present in the UF2) really leaves the firmware and saves alone on this device. [VERIFY on hardware with a throwaway file before trusting it with a real save.] (PLAN.md backlog item 13.)
