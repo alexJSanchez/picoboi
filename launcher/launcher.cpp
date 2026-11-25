@@ -87,6 +87,19 @@ bool launcher_update(pb_lib_entry_t *out) {
   return false;
 }
 
+void launcher_draw_save_prompt() {
+  ui_clear(BG);
+  ui_text(10, 8, "PICOBOY", TITLE);
+  ui_rect(10, 22, 220, 1, HINT);
+  draw_centered(44, "SAVE AREA IN USE", WARN);
+  draw_centered(68, "This PicoSystem already has", NORMAL);
+  draw_centered(82, "other data in the place", NORMAL);
+  draw_centered(96, "where game saves are kept.", NORMAL);
+  draw_centered(124, "A: erase it, enable saves", HILITE_TX);
+  draw_centered(144, "B: play without saving", HILITE_TX);
+  draw_centered(176, "(B asks again next time.)", HINT);
+}
+
 void launcher_draw() {
   ui_clear(BG);
   ui_text(10, 8, "PICOBOY", TITLE);

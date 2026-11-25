@@ -65,3 +65,20 @@ Firmware `build-lib/picoboy.uf2` (the default build, no ROM inside) and a librar
 | 6 | A greyed game (Game Boy Color only, unsupported cartridge, bad header) | Greyed row, reason in red, A does nothing | not yet tried (no such ROM in the library) |
 | 7 | No library flashed (erased or stale flash) | A message explaining how to make and flash `library.uf2` | not yet tried |
 | 8 | Zelda: Link's Awakening picture | Compatibility note in `docs/COMPAT.md` (Phase 7) | author reported nothing wrong |
+
+## Phase 4: saves (backlog items 14 and 15)
+
+Firmware: `build-lib/picoboy.uf2` (the default build). The library stays as it is (flashing firmware does not touch it). The first erase and program of flash by our own code happens here; it is confined to the settings and save regions (`0xA00000` to `0xC00000`).
+
+| # | Action | Expected |
+|---|---|---|
+| 1 | Flash the firmware and boot. | If the save region holds other data (it does on the author's device): a screen "SAVE AREA IN USE" asking A (erase it, enable saves) or B (play without saving). If the region is blank: no question, saves are enabled. |
+| 2 | Press A on the question. | The game list appears. Serial: `saves: claimed the region`. |
+| 3 | Start a game that has battery saves (Pokemon Red), play, use the game's own SAVE command. | About 2 s after the game stops writing, the black bar above the picture shows `SAVED` in green for 1.5 s; the picture and sound freeze for roughly half a second while it writes. Serial: `save: wrote 32768 bytes ... in NNN ms`. |
+| 4 | Power the device off and on, start the game, choose CONTINUE. | The saved game is there. Serial: `saves: loaded 32768 bytes`. |
+| 5 | Save again, change something, hold X+Y to return to the list within 2 s of the change. | `SAVED` is written on leaving (the app saves at once if anything is unsaved); the change is there after a restart. |
+| 6 | Play Zelda (8 KiB save) the same way. | Works the same; its save does not disturb Pokemon's. |
+| 7 | Press B on the question (after erasing or on a device that asks again). | Games run, nothing is written to flash, no `SAVED`; the question comes back on the next boot. |
+| 8 | Power-cut test (needs the author): in a game save, then cut power (battery out or unplug while on battery) at random moments for a while, including during the `SAVED` pause. | After every restart the game offers either the previous or the new save; never a corrupted or empty one. (The PC test cuts the power at every operation; this checks the real flash.) |
+
+Record the save time per game in `docs/DECISIONS.md`.

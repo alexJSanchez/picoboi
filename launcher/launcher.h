@@ -20,6 +20,10 @@ bool launcher_update(pb_lib_entry_t *out);
 // Draws the list (or a message if there is no usable library).
 void launcher_draw();
 
+// The question shown when the save area holds data that is not ours: A erases it and enables
+// saves, B plays without saving. (The app reads the buttons; this only draws.)
+void launcher_draw_save_prompt();
+
 // Shows a one-line problem under the list (for example when the emulator refused a ROM).
 void launcher_set_message(const char *text);
 

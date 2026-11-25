@@ -28,6 +28,8 @@
 #include "launcher.h"
 #include "pb_core.h"
 #include "pb_pacer.h"
+#include "save_manager.h"
+#include "ui.h"
 
 using namespace picosystem;
 
@@ -38,7 +40,7 @@ extern "C" const uint8_t pb_embedded_rom_end[];
 
 namespace {
 
-enum class Mode { Launcher, Game, Error };
+enum class Mode { Launcher, SavePrompt, Game, Error };
 Mode g_mode = Mode::Error;
 bool g_from_launcher = false;      // false: a build with an embedded ROM that runs it directly
 bool g_clear_on_next_draw = false;  // wipe the screen before the first game picture
@@ -124,9 +126,10 @@ pb_core_config_t make_core_config(const uint8_t *rom, uint32_t rom_size, uint32_
 
 // Starts a game: fresh save RAM (saving to flash comes in Phase 4), fresh pacing and
 // statistics, silent speaker. The ROM is read in place (XIP), never copied.
-pb_status_t start_game(const uint8_t *rom, uint32_t rom_size, uint32_t cart_ram_size) {
+pb_status_t start_game(const uint8_t *rom, uint32_t rom_size, uint32_t cart_ram_size, uint32_t save_key) {
   if (cart_ram_size > MAX_CART_RAM) return PB_ERR_CART_RAM_TOO_SMALL;
   memset(g_cart_ram, 0, sizeof(g_cart_ram));
+  if (g_from_launcher) saves_begin_game(save_key, g_cart_ram, cart_ram_size);  // loads the saved RAM, if any
   pb_core_config_t cfg = make_core_config(rom, rom_size, cart_ram_size);
   const pb_status_t st = pb_core_init(&g_core, &cfg);
   if (st != PB_OK) return st;
@@ -141,6 +144,7 @@ pb_status_t start_game(const uint8_t *rom, uint32_t rom_size, uint32_t cart_ram_
 }
 
 void back_to_launcher() {
+  saves_end_game(&g_core);  // saves at once if the game changed its RAM since the last save
   audio_reset();  // stop the speaker repeating the last buffered sound
   launcher_init(MAX_CART_RAM);
   g_mode = Mode::Launcher;
@@ -264,6 +268,7 @@ void update_game() {
   if (plan.frames && plan.render) g_drawn_updates++;
   g_update_us.add(time_us() - start);
   g_flip_us.add(stats.flip_us);
+  if (g_from_launcher) saves_tick(&g_core);        // saves after the game has been quiet for 2 s
   if (g_updates % 80 == 40) audio_print_diag();  // about every 3 s
 
   if (++g_updates == BENCH_UPDATES) {
@@ -296,7 +301,7 @@ void init() {
 #endif
   g_from_launcher = false;
   const uint32_t size = (uint32_t)(pb_embedded_rom_end - pb_embedded_rom);
-  const pb_status_t st = start_game(pb_embedded_rom, size, sizeof(g_cart_ram));
+  const pb_status_t st = start_game(pb_embedded_rom, size, sizeof(g_cart_ram), 0);
   if (st != PB_OK) {
     g_error = "core init failed";
     g_mode = Mode::Error;
@@ -304,8 +309,9 @@ void init() {
   }
 #else
   g_from_launcher = true;
+  saves_init();  // a blank save region is claimed silently; other data is asked about first
   launcher_init(MAX_CART_RAM);
-  g_mode = Mode::Launcher;
+  g_mode = saves_state() == SaveState::NeedsConfirm ? Mode::SavePrompt : Mode::Launcher;
 #endif
 }
 
@@ -320,13 +326,25 @@ void update(uint32_t) {
       if (launcher_update(&e)) {
         printf("starting \"%s\" (flash offset 0x%06x, %u bytes)\n", e.name, (unsigned)e.flash_offset,
                (unsigned)e.size);
-        const pb_status_t st = start_game((const uint8_t *)(uintptr_t)pb_lib_entry_xip_address(&e), e.size, e.ram_size);
+        const pb_status_t st = start_game((const uint8_t *)(uintptr_t)pb_lib_entry_xip_address(&e), e.size, e.ram_size,
+                                          e.rom_crc32);
         if (st != PB_OK) {
           printf("the emulator refused this ROM: status %d\n", (int)st);
           launcher_set_message(st == PB_ERR_UNSUPPORTED_CART ? "Emulator: cartridge not supported"
                                : st == PB_ERR_BAD_HEADER     ? "Emulator: bad ROM header"
                                                              : "Emulator could not start this game");
         }
+      }
+      break;
+    }
+    case Mode::SavePrompt: {
+      const uint8_t b = ui_buttons_pressed();
+      if (b & UI_A) {
+        saves_claim();
+        g_mode = Mode::Launcher;
+      } else if (b & UI_B) {
+        saves_decline();
+        g_mode = Mode::Launcher;
       }
       break;
     }
@@ -347,6 +365,9 @@ void draw(uint32_t) {
     case Mode::Launcher:
       launcher_draw();
       break;
+    case Mode::SavePrompt:
+      launcher_draw_save_prompt();
+      break;
     case Mode::Game: {
       if (g_clear_on_next_draw) {  // after the list: remove its pixels from the borders
         display_clear();
@@ -355,6 +376,19 @@ void draw(uint32_t) {
       const uint32_t t0 = time_us();
       display_present();
       g_blit_us.add(time_us() - t0);
+      {  // a short message about saving in the black bar above the picture
+        static bool overlay_shown = false;
+        bool is_error = false;
+        const char *msg = saves_overlay(picosystem::time(), &is_error);
+        if (msg) {
+          ui_rect(0, 0, 240, 12, {0, 0, 0});
+          ui_text(8, 2, msg, is_error ? ui_color{15, 6, 6} : ui_color{6, 15, 6});
+          overlay_shown = true;
+        } else if (overlay_shown) {
+          ui_rect(0, 0, 240, 12, {0, 0, 0});
+          overlay_shown = false;
+        }
+      }
       break;
     }
     case Mode::Error:

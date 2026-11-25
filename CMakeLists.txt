@@ -26,14 +26,22 @@ picosystem_executable(picoboy
   launcher/launcher_model.c
   storage/crc32.c
   storage/rom_library.c
+  storage/save_store.c
+  storage/save_policy.c
+  platform/flash_ops.cpp
+  app/save_manager.cpp
   core/pb_core.c
   core/pb_pacer.c
   core/pb_audio_sync.c
   third_party/peanut_gb/examples/sdl2/minigb_apu/minigb_apu.c
 )
-target_include_directories(picoboy PRIVATE core platform launcher storage third_party/peanut_gb
+target_include_directories(picoboy PRIVATE core platform launcher storage app third_party/peanut_gb
   third_party/peanut_gb/examples/sdl2/minigb_apu)
 target_compile_definitions(picoboy PRIVATE MINIGB_APU_AUDIO_FORMAT_S16SYS=1)
+# Saving writes to flash through flash_safe_execute(). We never start the second core, so tell
+# the SDK it may assume core 1 is safe (otherwise it refuses to run). Revisit if core 1 is ever used.
+target_link_libraries(picoboy pico_flash hardware_flash)
+target_compile_definitions(picoboy PRIVATE PICO_FLASH_ASSUME_CORE1_SAFE=1)
 
 # Development only: -DPB_EMBED_ROM=<file> builds a ROM into the firmware (read in place via XIP) and
 # runs it directly, skipping the game list; used for benchmarks and the tone build. The ROM is
