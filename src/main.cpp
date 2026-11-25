@@ -23,8 +23,8 @@ constexpr int S = 32;  // indicator size
 const Btn BTNS[] = {
     {UP, "UP", 48, 80},     {DOWN, "DOWN", 48, 144},
     {LEFT, "LEFT", 16, 112}, {RIGHT, "RIGHT", 80, 112},
-    {Y, "Y", 160, 80},      {A, "A", 160, 144},
-    {X, "X", 128, 112},     {B, "B", 192, 112},
+    {X, "X", 160, 80},      {A, "A", 160, 144},
+    {Y, "Y", 128, 112},     {B, "B", 192, 112},
 };
 constexpr size_t NBTN = sizeof(BTNS) / sizeof(BTNS[0]);
 
