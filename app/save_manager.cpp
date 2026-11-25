@@ -26,6 +26,20 @@ uint32_t g_ram_size = 0;
 
 uint32_t g_blocked_until_ms = 0;  // after a failed save, do not retry for a while
 bool g_blocked = false;
+// Which 8 KiB RAM banks count when deciding that the game saved (bit n = bank n). A few games use
+// a bank as scratch space while playing, so "the RAM changed" is not the same as "the player
+// saved". Pokemon Red/Blue/Yellow (and the Japanese Green) decompress sprites into bank 0 and
+// keep the real save in banks 1 to 3; measured on a scripted play-through: the intro and play
+// change only bank 0, the in-game SAVE changes bank 1 (docs/COMPAT.md). Everything else: all banks.
+uint32_t g_bank_mask = 0xFFFF;
+
+uint32_t trigger_banks_for(const char *title) {
+  static const char *const scratch_bank0[] = {"POKEMON RED", "POKEMON BLUE", "POKEMON YELLOW", "POKEMON GREEN"};
+  for (const char *t : scratch_bank0)
+    if (title && strcmp(title, t) == 0) return 0xFFFE;
+  return 0xFFFF;
+}
+
 uint32_t g_synced_crc = 0;      // CRC of the RAM as last loaded from or written to flash
 bool g_synced_valid = false;    // false: nothing stored yet for this game
 uint32_t g_overlay_until_ms = 0;
@@ -45,7 +59,7 @@ uint32_t new_store_id() {
 
 void flush(const pb_core_t *core) {
   const uint32_t now = picosystem::time();
-  const uint32_t gen = pb_core_cart_ram_generation(core);
+  const uint32_t gen = pb_core_cart_ram_generation_banks(core, g_bank_mask);
 
   // The game rewrote its save RAM but the contents are what is already stored (or was loaded):
   // nothing to save, so no flash write and no pause.
@@ -126,7 +140,8 @@ void saves_decline() {
   }
 }
 
-bool saves_begin_game(uint32_t key, uint8_t *ram, uint32_t ram_size) {
+bool saves_begin_game(uint32_t key, uint8_t *ram, uint32_t ram_size, const char *title) {
+  g_bank_mask = trigger_banks_for(title);
   memset(ram, 0, ram_size);
   g_in_game = true;
   g_key = key;
@@ -177,12 +192,12 @@ void saves_tick(const pb_core_t *core) {
   if (!g_in_game || g_state != SaveState::Ready || g_ram_size == 0) return;
   const uint32_t now = picosystem::time();
   if (g_blocked && (int32_t)(now - g_blocked_until_ms) < 0) return;
-  if (pb_savepol_update(&g_pol, pb_core_cart_ram_generation(core), now)) flush(core);
+  if (pb_savepol_update(&g_pol, pb_core_cart_ram_generation_banks(core, g_bank_mask), now)) flush(core);
 }
 
 void saves_end_game(const pb_core_t *core) {
   if (g_in_game && g_state == SaveState::Ready && g_ram_size != 0 &&
-      pb_savepol_dirty(&g_pol, pb_core_cart_ram_generation(core))) {
+      pb_savepol_dirty(&g_pol, pb_core_cart_ram_generation_banks(core, g_bank_mask))) {
     flush(core);
   }
   g_in_game = false;

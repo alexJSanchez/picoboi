@@ -93,3 +93,8 @@ add_executable(test_save_policy test_save_policy.c ${ROOT}/storage/save_policy.c
 target_include_directories(test_save_policy PRIVATE ${ROOT}/storage)
 target_compile_options(test_save_policy PRIVATE -Wall -Wextra)
 add_test(NAME save_policy COMMAND test_save_policy)
+
+# Developer tool for the compatibility pass (not a test): runs a ROM with a button script and takes screenshots.
+add_executable(play_rom play_rom.c ${CORE_SOURCES})
+target_include_directories(play_rom PRIVATE ${ROOT}/core ${ROOT}/third_party/peanut_gb ${APU_DIR})
+target_compile_options(play_rom PRIVATE -Wall -Wextra)

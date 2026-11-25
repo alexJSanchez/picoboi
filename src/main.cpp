@@ -126,10 +126,11 @@ pb_core_config_t make_core_config(const uint8_t *rom, uint32_t rom_size, uint32_
 
 // Starts a game: fresh save RAM (saving to flash comes in Phase 4), fresh pacing and
 // statistics, silent speaker. The ROM is read in place (XIP), never copied.
-pb_status_t start_game(const uint8_t *rom, uint32_t rom_size, uint32_t cart_ram_size, uint32_t save_key) {
+pb_status_t start_game(const uint8_t *rom, uint32_t rom_size, uint32_t cart_ram_size, uint32_t save_key,
+                       const char *title) {
   if (cart_ram_size > MAX_CART_RAM) return PB_ERR_CART_RAM_TOO_SMALL;
   memset(g_cart_ram, 0, sizeof(g_cart_ram));
-  if (g_from_launcher) saves_begin_game(save_key, g_cart_ram, cart_ram_size);  // loads the saved RAM, if any
+  if (g_from_launcher) saves_begin_game(save_key, g_cart_ram, cart_ram_size, title);  // loads the saved RAM, if any
   pb_core_config_t cfg = make_core_config(rom, rom_size, cart_ram_size);
   const pb_status_t st = pb_core_init(&g_core, &cfg);
   if (st != PB_OK) return st;
@@ -301,7 +302,7 @@ void init() {
 #endif
   g_from_launcher = false;
   const uint32_t size = (uint32_t)(pb_embedded_rom_end - pb_embedded_rom);
-  const pb_status_t st = start_game(pb_embedded_rom, size, sizeof(g_cart_ram), 0);
+  const pb_status_t st = start_game(pb_embedded_rom, size, sizeof(g_cart_ram), 0, "");
   if (st != PB_OK) {
     g_error = "core init failed";
     g_mode = Mode::Error;
@@ -327,7 +328,7 @@ void update(uint32_t) {
         printf("starting \"%s\" (flash offset 0x%06x, %u bytes)\n", e.name, (unsigned)e.flash_offset,
                (unsigned)e.size);
         const pb_status_t st = start_game((const uint8_t *)(uintptr_t)pb_lib_entry_xip_address(&e), e.size, e.ram_size,
-                                          e.rom_crc32);
+                                          e.rom_crc32, e.name);
         if (st != PB_OK) {
           printf("the emulator refused this ROM: status %d\n", (int)st);
           launcher_set_message(st == PB_ERR_UNSUPPORTED_CART ? "Emulator: cartridge not supported"

@@ -30,3 +30,6 @@ build-*/
 
 # Local ROM folders: never commit game files
 roms/
+
+# Screenshots of commercial games taken during compatibility checks: local only, never committed
+compat-shots/

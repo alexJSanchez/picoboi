@@ -16,7 +16,7 @@ static int failures = 0;
   } while (0)
 
 static uint8_t g_rom[0x8000];
-static uint8_t g_ram[8192];
+static uint8_t g_ram[32768];  // 4 banks of 8 KiB
 static pb_core_t g_core;
 
 static void on_line(void *u, const uint8_t px[PB_SCREEN_W], uint8_t line) { (void)u; (void)px; (void)line; }
@@ -27,16 +27,18 @@ int main(void) {
   memcpy(&g_rom[0x134], "RAMTEST", 7);
   g_rom[0x147] = 0x03;  // MBC1 + RAM + battery
   g_rom[0x148] = 0x00;  // 32 KiB ROM
-  g_rom[0x149] = 0x02;  // 8 KiB RAM
+  g_rom[0x149] = 0x03;  // 32 KiB RAM = 4 banks of 8 KiB
   uint8_t chk = 0;
   for (int i = 0x134; i <= 0x14C; i++) chk = (uint8_t)(chk - g_rom[i] - 1);
   g_rom[0x14D] = chk;
   static const uint8_t prog[] = {
       0x3E, 0x0A, 0xEA, 0x00, 0x00,  // LD A,0x0A ; LD (0x0000),A   enable cart RAM
-      0x3E, 0x55, 0xEA, 0x00, 0xA0,  // LD A,0x55 ; LD (0xA000),A   change byte 0 (0x00 -> 0x55)
+      0x3E, 0x55, 0xEA, 0x00, 0xA0,  // LD A,0x55 ; LD (0xA000),A   bank 0, byte 0: 0x00 -> 0x55 (change)
       0xEA, 0x00, 0xA0,              // LD (0xA000),A               same value again: no change
-      0xEA, 0x01, 0xA0,              // LD (0xA001),A               change byte 1 (0x00 -> 0x55)
-      0x3E, 0x56, 0xEA, 0x00, 0xA0,  // LD A,0x56 ; LD (0xA000),A   change byte 0 again
+      0x3E, 0x01, 0xEA, 0x00, 0x60,  // LD A,1 ; LD (0x6000),A      RAM banking mode
+      0x3E, 0x01, 0xEA, 0x00, 0x40,  // LD A,1 ; LD (0x4000),A      select RAM bank 1
+      0x3E, 0x77, 0xEA, 0x00, 0xA0,  // LD A,0x77 ; LD (0xA000),A   bank 1, byte 0: change
+      0x3E, 0x78, 0xEA, 0x01, 0xA0,  // LD A,0x78 ; LD (0xA001),A   bank 1, byte 1: change
       0x18, 0xFE};                   // JR -2 (loop forever)
   memcpy(&g_rom[0x150], prog, sizeof(prog));
 
@@ -47,15 +49,24 @@ int main(void) {
   CHECK(pb_core_cart_ram_generation(&g_core) == 0);
 
   pb_core_run_frame(&g_core);
-  CHECK(g_ram[0] == 0x56 && g_ram[1] == 0x55);
+  CHECK(g_ram[0] == 0x55 && g_ram[0x2000] == 0x77 && g_ram[0x2001] == 0x78);  // bank 0 and bank 1
   CHECK(pb_core_cart_ram_dirty(&g_core));
   CHECK(pb_core_cart_ram_generation(&g_core) == 3);  // three writes changed a byte; the repeated one did not
 
+  // Per bank: one change in bank 0, two in bank 1, none elsewhere.
+  CHECK(pb_core_cart_ram_generation_banks(&g_core, 0x0001) == 1);
+  CHECK(pb_core_cart_ram_generation_banks(&g_core, 0x0002) == 2);
+  CHECK(pb_core_cart_ram_generation_banks(&g_core, 0x000C) == 0);
+  CHECK(pb_core_cart_ram_generation_banks(&g_core, 0xFFFE) == 2);  // "everything but the scratch bank 0"
+  CHECK(pb_core_cart_ram_generation_banks(&g_core, 0xFFFF) == 3);
+  CHECK(pb_core_cart_ram_generation_banks(&g_core, 0x0000) == 0);
+
   pb_core_cart_ram_clear_dirty(&g_core);
   CHECK(!pb_core_cart_ram_dirty(&g_core));
-  CHECK(pb_core_cart_ram_generation(&g_core) == 3);  // clearing the flag does not touch the counter
+  CHECK(pb_core_cart_ram_generation(&g_core) == 3);  // clearing the flag does not touch the counters
   for (int i = 0; i < 5; i++) pb_core_run_frame(&g_core);
   CHECK(pb_core_cart_ram_generation(&g_core) == 3);  // the program loops without writing
+  CHECK(pb_core_cart_ram_generation_banks(&g_core, 0xFFFE) == 2);
   CHECK(!pb_core_cart_ram_dirty(&g_core));
 
   if (failures == 0) printf("core cart RAM tests passed\n");

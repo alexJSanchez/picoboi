@@ -41,7 +41,8 @@ void saves_decline();
 
 // Fills `ram` (ram_size bytes) with the game's saved data, or zeros if there is none. Call before
 // the core is initialised. Returns true if a save was loaded.
-bool saves_begin_game(uint32_t key, uint8_t *ram, uint32_t ram_size);
+// `title` is the game's name from its ROM header: it picks which RAM banks count as "the game saved".
+bool saves_begin_game(uint32_t key, uint8_t *ram, uint32_t ram_size, const char *title);
 
 // For the game list: is there a stored save for this ROM, and for how many games in total.
 bool saves_has_save(uint32_t key);
@@ -60,7 +61,7 @@ inline SaveState saves_state() { return SaveState::Unavailable; }
 inline bool saves_claim() { return false; }
 inline int saves_last_error() { return 0; }
 inline void saves_decline() {}
-inline bool saves_begin_game(uint32_t, uint8_t *, uint32_t) { return false; }
+inline bool saves_begin_game(uint32_t, uint8_t *, uint32_t, const char *) { return false; }
 inline bool saves_has_save(uint32_t) { return false; }
 inline uint32_t saves_game_count() { return 0; }
 inline void saves_tick(const pb_core_t *) {}

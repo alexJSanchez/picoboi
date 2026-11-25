@@ -110,6 +110,10 @@ bool pb_core_cart_ram_dirty(const pb_core_t *c);
 // Counts the writes that changed a byte of cart RAM (wraps around). The app watches it to find
 // out when the game stopped writing, which is the moment to save.
 uint32_t pb_core_cart_ram_generation(const pb_core_t *c);
+// The same, counting only changes in the 8 KiB RAM banks selected by `bank_mask` (bit n = bank n).
+// Some games use one bank as scratch space while playing (Pokemon: bank 0, for sprites); the
+// app can then leave that bank out when deciding that the game saved.
+uint32_t pb_core_cart_ram_generation_banks(const pb_core_t *c, uint32_t bank_mask);
 void pb_core_cart_ram_clear_dirty(pb_core_t *c);
 
 #ifdef __cplusplus

@@ -31,6 +31,7 @@ typedef struct {
   audio_sample_t abuf[PB_AUDIO_SAMPLES_PER_FRAME * 2];  // stereo from the APU, mixed to mono in place
   uint32_t apu_sum_us, apu_max_us, apu_frames;            // profiling (clock_us)
   uint32_t cart_gen;  // number of cart RAM writes that changed a byte
+  uint32_t bank_gen[16];  // the same, per 8 KiB bank (banks beyond 15 are only in the total)
   bool dirty;
 } impl_t;
 
@@ -85,6 +86,7 @@ static void cart_ram_write(struct gb_s *gb, const uint_fast32_t addr, const uint
     m->cfg.cart_ram[addr] = val;
     m->dirty = true;
     m->cart_gen++;
+    if ((addr >> 13) < 16) m->bank_gen[addr >> 13]++;
   }
 }
 
@@ -168,4 +170,11 @@ uint32_t pb_core_cart_ram_needed(const pb_core_t *c) {
 
 bool pb_core_cart_ram_dirty(const pb_core_t *c) { return impl_c(c)->dirty; }
 uint32_t pb_core_cart_ram_generation(const pb_core_t *c) { return impl_c(c)->cart_gen; }
+
+uint32_t pb_core_cart_ram_generation_banks(const pb_core_t *c, uint32_t bank_mask) {
+  uint32_t sum = 0;
+  for (uint32_t b = 0; b < 16; b++)
+    if (bank_mask & (1u << b)) sum += impl_c(c)->bank_gen[b];
+  return sum;
+}
 void pb_core_cart_ram_clear_dirty(pb_core_t *c) { impl(c)->dirty = false; }
