@@ -104,6 +104,7 @@ void launcher_draw_save_prompt() {
 void launcher_draw() {
   ui_clear(BG);
   ui_text(10, 8, "PICOBOY", TITLE);
+#ifdef PB_SAVES
   {
     char st[28];
     const SaveState ss = saves_state();
@@ -114,6 +115,7 @@ void launcher_draw() {
     }
     ui_text(230 - ui_text_width(st), 8, st, ss == SaveState::Ready ? ui_color{6, 15, 6} : WARN);
   }
+#endif
   ui_rect(10, 22, 220, 1, HINT);
 
   if (g_model.count == 0) {

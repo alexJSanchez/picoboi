@@ -26,10 +26,6 @@ picosystem_executable(picoboy
   launcher/launcher_model.c
   storage/crc32.c
   storage/rom_library.c
-  storage/save_store.c
-  storage/save_policy.c
-  platform/flash_ops.cpp
-  app/save_manager.cpp
   core/pb_core.c
   core/pb_pacer.c
   core/pb_audio_sync.c
@@ -38,15 +34,23 @@ picosystem_executable(picoboy
 target_include_directories(picoboy PRIVATE core platform launcher storage app third_party/peanut_gb
   third_party/peanut_gb/examples/sdl2/minigb_apu)
 target_compile_definitions(picoboy PRIVATE MINIGB_APU_AUDIO_FORMAT_S16SYS=1)
-# Saving writes to flash through flash_safe_execute(). We never start the second core, so tell
-# the SDK it may assume core 1 is safe (otherwise it refuses to run). Revisit if core 1 is ever used.
-target_link_libraries(picoboy pico_flash hardware_flash)
-target_compile_definitions(picoboy PRIVATE PICO_FLASH_ASSUME_CORE1_SAFE=1)
-# The default board is a 2 MiB Pico, but the PicoSystem has 16 MiB and our save regions are at 10 MiB.
-# The SDK's flash_range_erase/program have an always-on check against PICO_FLASH_SIZE_BYTES that halts
-# the program (with interrupts off) for offsets beyond it, so it must say 16 MiB. Checked at build
-# time by a static_assert in platform/flash_ops.cpp.
-target_compile_definitions(picoboy PRIVATE PICO_FLASH_SIZE_BYTES=16777216)
+# Saving to flash is OFF by default (the author chose to play without it for now): with it off, no
+# save code is compiled in and the firmware contains nothing that can write to flash.
+# -DPB_SAVES=ON adds the save store, the save policy, the flash driver and the game-list/overlay
+# parts (tested on the PC; see docs/DECISIONS.md for the hardware findings that went with it).
+option(PB_SAVES "Save the games' battery RAM to flash" OFF)
+if(PB_SAVES)
+  target_sources(picoboy PRIVATE storage/save_store.c storage/save_policy.c platform/flash_ops.cpp app/save_manager.cpp)
+  target_link_libraries(picoboy pico_flash hardware_flash)
+  target_compile_definitions(picoboy PRIVATE PB_SAVES)
+  # flash_safe_execute(): we never start the second core, so tell the SDK it may assume core 1 is safe
+  # (otherwise it refuses to run). Revisit if core 1 is ever used.
+  target_compile_definitions(picoboy PRIVATE PICO_FLASH_ASSUME_CORE1_SAFE=1)
+  # The default board is a 2 MiB Pico but the PicoSystem has 16 MiB and the save regions are at 10 MiB.
+  # The SDK's flash_range_erase/program halt the program (interrupts off) for offsets beyond
+  # PICO_FLASH_SIZE_BYTES, so it must say 16 MiB; platform/flash_ops.cpp checks this at build time.
+  target_compile_definitions(picoboy PRIVATE PICO_FLASH_SIZE_BYTES=16777216)
+endif()
 
 # Development only: -DPB_EMBED_ROM=<file> builds a ROM into the firmware (read in place via XIP) and
 # runs it directly, skipping the game list; used for benchmarks and the tone build. The ROM is
@@ -125,5 +129,5 @@ if(PB_FLASH_TEST)
   target_include_directories(picoboy PRIVATE storage src)
   target_link_libraries(picoboy pico_flash hardware_flash)
   # We never start the second core, so flash_safe_execute may assume it is safe.
-  target_compile_definitions(picoboy PRIVATE PB_FLASH_TEST PICO_FLASH_ASSUME_CORE1_SAFE=1)
+  target_compile_definitions(picoboy PRIVATE PB_FLASH_TEST PICO_FLASH_ASSUME_CORE1_SAFE=1 PICO_FLASH_SIZE_BYTES=16777216)
 endif()

@@ -1,5 +1,10 @@
 // app/save_manager: ties the save store, the save policy and the running game together.
 //
+// SAVING IS OFF BY DEFAULT (the author decided to play without it for now). Without the CMake option
+// PB_SAVES, this header provides do-nothing versions of every function below, nothing about saving
+// is compiled into the firmware, and the firmware has no code that can write to flash. Build with
+// -DPB_SAVES=ON to get the real thing:
+//
 //   boot        saves_init()            opens the store (a blank region is claimed silently; a
 //                                       region holding other data waits for the player's answer)
 //   prompt      saves_claim() / saves_decline()
@@ -24,6 +29,8 @@ enum class SaveState {
   Ready,         // saves work
 };
 
+#ifdef PB_SAVES
+
 void saves_init();
 SaveState saves_state();
 
@@ -46,5 +53,21 @@ void saves_end_game(const pb_core_t *core);
 
 // A short message about the last save to show for a moment ("SAVED", or a problem), or nullptr.
 const char *saves_overlay(uint32_t now_ms, bool *is_error);
+
+#else  // saving compiled out: nothing here can touch flash
+
+inline void saves_init() {}
+inline SaveState saves_state() { return SaveState::Unavailable; }
+inline bool saves_claim() { return false; }
+inline int saves_last_error() { return 0; }
+inline void saves_decline() {}
+inline bool saves_begin_game(uint32_t, uint8_t *, uint32_t) { return false; }
+inline bool saves_has_save(uint32_t) { return false; }
+inline uint32_t saves_game_count() { return 0; }
+inline void saves_tick(const pb_core_t *) {}
+inline void saves_end_game(const pb_core_t *) {}
+inline const char *saves_overlay(uint32_t, bool *) { return nullptr; }
+
+#endif  // PB_SAVES
 
 #endif
