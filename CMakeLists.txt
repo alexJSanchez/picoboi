@@ -62,3 +62,14 @@ option(PB_AUDIO_TEST_TONE "Play test tones instead of game audio" OFF)
 if(PB_AUDIO_TEST_TONE)
   target_compile_definitions(picoboy PRIVATE PB_AUDIO_TEST_TONE)
 endif()
+
+# Boot benchmark: before starting the game, run its first frames three ways and print the
+# timings over USB serial (needs a serial reader connected). See src/main.cpp.
+option(PB_BOOT_BENCH "Run the boot benchmark at start-up" OFF)
+if(PB_BOOT_BENCH)
+  target_compile_definitions(picoboy PRIVATE PB_BOOT_BENCH)
+endif()
+
+# Peanut-GB accuracy option for sprite rendering (see third_party/peanut_gb/peanut_gb.h).
+set(PB_HIGH_LCD_ACCURACY 1 CACHE STRING "PEANUT_GB_HIGH_LCD_ACCURACY (0 or 1)")
+target_compile_definitions(picoboy PRIVATE PEANUT_GB_HIGH_LCD_ACCURACY=${PB_HIGH_LCD_ACCURACY})

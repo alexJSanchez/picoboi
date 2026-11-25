@@ -10,6 +10,7 @@
 #include <stdio.h>
 
 #include "pico/stdlib.h"
+#include "pico/stdio_usb.h"
 #include "picosystem.hpp"
 
 #include "audio.h"
@@ -68,13 +69,9 @@ void on_core_error(void *, int code, uint16_t addr) {
 
 }  // namespace
 
-void init() {
-  stdio_init_all();
-  printf("PicoBoy Phase 1\n");
-  display_init();
-  audio_init();
-
+namespace {
 #ifdef PB_HAVE_EMBEDDED_ROM
+pb_core_config_t make_core_config() {
   pb_core_config_t cfg = {};
   cfg.rom = pb_embedded_rom;
   cfg.rom_size = (uint32_t)(pb_embedded_rom_end - pb_embedded_rom);
@@ -86,6 +83,69 @@ void init() {
 #ifndef PB_AUDIO_TEST_TONE
   cfg.on_audio = on_core_audio;  // game audio; the test-tone build plays tones instead
 #endif
+  return cfg;
+}
+#endif
+
+#ifdef PB_BOOT_BENCH
+void bench_discard_audio(void *, const int16_t *, uint32_t) {}
+
+// Runs the first frames of the ROM with no input (deterministic, so variants of the firmware
+// can be compared) in three configurations and prints the average and worst frame time per
+// segment of BENCH_SEG frames:
+//   A: drawing + audio (the real cost)   B: no drawing, audio   C: no drawing, no audio
+// A-B is the picture cost, B-C the audio cost, C the CPU emulation.
+void run_boot_bench() {
+  constexpr int SEGMENTS = 6, BENCH_SEG = 300;
+  // Wait for a serial reader so the numbers are not lost (the screen stays black meanwhile).
+  const uint32_t wait_start = time_us_32();
+  while (!stdio_usb_connected() && time_us_32() - wait_start < 120000000u) sleep_ms(100);
+  sleep_ms(500);
+  printf("bootbench: A=draw+audio  B=audio only  C=neither; %d frames per segment, microseconds per frame\n",
+         BENCH_SEG);
+  for (int pass = 0; pass < 3; pass++) {
+    const bool render = pass == 0;
+    pb_core_config_t cfg = make_core_config();
+    cfg.on_audio = pass < 2 ? bench_discard_audio : nullptr;
+    if (pb_core_init(&g_core, &cfg) != PB_OK) {
+      printf("bootbench: init failed\n");
+      return;
+    }
+    pb_core_set_rendering(&g_core, render);
+    uint32_t apu_avg, apu_max, apu_n;
+    for (int seg = 0; seg < SEGMENTS; seg++) {
+      uint64_t sum = 0;
+      uint32_t mx = 0, mn = 0xFFFFFFFF;
+      for (int f = 0; f < BENCH_SEG; f++) {
+        const uint32_t t0 = time_us_32();
+        pb_core_run_frame(&g_core);
+        const uint32_t dt = time_us_32() - t0;
+        sum += dt;
+        if (dt > mx) mx = dt;
+        if (dt < mn) mn = dt;
+      }
+      pb_core_take_apu_stats(&g_core, &apu_avg, &apu_max, &apu_n);
+      printf("bootbench %c frames %4d-%4d: avg=%5u min=%5u max=%5u apu_avg=%u\n", 'A' + pass,
+             seg * BENCH_SEG, (seg + 1) * BENCH_SEG - 1, (unsigned)(sum / BENCH_SEG),
+             (unsigned)mn, (unsigned)mx, (unsigned)apu_avg);
+    }
+  }
+  printf("bootbench: done\n");
+}
+#endif
+}  // namespace
+
+void init() {
+  stdio_init_all();
+  printf("PicoBoy Phase 1\n");
+  display_init();
+  audio_init();
+
+#ifdef PB_HAVE_EMBEDDED_ROM
+#ifdef PB_BOOT_BENCH
+  run_boot_bench();
+#endif
+  pb_core_config_t cfg = make_core_config();
   pb_status_t st = pb_core_init(&g_core, &cfg);
   if (st == PB_OK) {
     g_running = true;
