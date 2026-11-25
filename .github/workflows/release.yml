@@ -1,0 +1,66 @@
+name: release
+
+# Pushing a tag that starts with "v" (for example v1.1) builds the firmware and publishes it as a
+# GitHub release. Only the firmware is published: it contains no games, and this workflow checks that.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  ARM_TOOLCHAIN_VERSION: 14.2.rel1
+
+jobs:
+  firmware:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build build-essential libusb-1.0-0-dev pkg-config
+
+      - name: Install Arm GNU toolchain
+        run: |
+          url="https://developer.arm.com/-/media/Files/downloads/gnu/${ARM_TOOLCHAIN_VERSION}/binrel/arm-gnu-toolchain-${ARM_TOOLCHAIN_VERSION}-x86_64-arm-none-eabi.tar.xz"
+          curl -fsSL -o arm.tar.xz "$url"
+          mkdir -p "$HOME/arm" && tar -xf arm.tar.xz -C "$HOME/arm" --strip-components=1
+          echo "$HOME/arm/bin" >> "$GITHUB_PATH"
+
+      - name: Build the firmware (default options: no ROM inside)
+        run: |
+          cmake -S . -B build -G Ninja -DPICO_SDK_PATH=third_party/pico-sdk
+          cmake --build build -j
+
+      - name: Check that no game is built in and the size is sane
+        run: |
+          # An embedded ROM would show up as a non-empty PB_EMBED_ROM in the CMake cache.
+          grep -E '^PB_EMBED_ROM:' build/CMakeCache.txt
+          grep -qE '^PB_EMBED_ROM:[A-Z]+=$' build/CMakeCache.txt
+          size=$(stat -c %s build/picoboy.bin)
+          echo "firmware: $size bytes (limit 1048576)"
+          test "$size" -le 1048576
+          # a release firmware is a few hundred KB; a ROM inside would make it much bigger
+          test "$size" -le 400000
+
+      - name: Collect the release files
+        run: |
+          mkdir -p release
+          cp build/picoboy.uf2 release/picoboy.uf2
+          cp -r licenses release/licenses
+          cp LICENSE THIRD_PARTY.md release/
+          (cd release && zip -qr picoboy-licenses.zip LICENSE THIRD_PARTY.md licenses)
+          (cd release && sha256sum picoboy.uf2 > SHA256SUMS.txt && cat SHA256SUMS.txt)
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            release/picoboy.uf2 release/SHA256SUMS.txt release/picoboy-licenses.zip \
+            --title "PicoBoy $GITHUB_REF_NAME" \
+            --notes-file .github/release-notes.md \
+            --generate-notes

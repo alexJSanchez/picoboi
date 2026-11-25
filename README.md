@@ -45,7 +45,7 @@ In the game list: **UP / DOWN** to choose, **A** to start.
 
 ### 2. Put the firmware on the PicoSystem
 
-Build it (see [Building](#building-from-source)) or take `picoboy.uf2` from a build. Hold **X** while switching the PicoSystem on; a drive called `RPI-RP2` appears. Copy `picoboy.uf2` onto it. It restarts into the game list.
+Download `picoboy.uf2` from the [Releases page](https://github.com/alexJSanchez/picoboi/releases) (or build it, see [Building](#building-from-source)). The full beginner's walkthrough is in **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)**. Hold **X** while switching the PicoSystem on; a drive called `RPI-RP2` appears. Copy `picoboy.uf2` onto it. It restarts into the game list.
 
 ### 3. Put your games on
 
@@ -141,7 +141,7 @@ Details and the on-flash formats: [docs/FLASH_LAYOUT.md](docs/FLASH_LAYOUT.md). 
 
 ## Building from source
 
-You need the Arm GNU Toolchain 14.2 (`arm-none-eabi-gcc`), CMake, Ninja and Python 3. Exact commands, and notes for a machine without a host C compiler (prebuilt `picotool`/`pioasm`), are in [CLAUDE.md](CLAUDE.md).
+You need the Arm GNU Toolchain 14.2 (`arm-none-eabi-gcc`), CMake, Ninja and Python 3. Step-by-step instructions for Windows, macOS and Linux, including a machine without a host C compiler (prebuilt `picotool`/`pioasm`), are in [docs/BUILDING.md](docs/BUILDING.md).
 
 ```sh
 git submodule update --init --recursive
@@ -206,8 +206,10 @@ The plan and the order things were built in are in [docs/PLAN.md](docs/PLAN.md).
 
 PicoBoy is an emulator. It contains no game code, no console boot ROM, and no Nintendo artwork. "Game Boy" and the names of games are trademarks of their owners; this project isn't affiliated with or endorsed by them. Only use ROMs you have the legal right to use.
 
-**Licence:** not chosen yet. Until a licence file is added, the code is under default copyright (all rights reserved) and others have no permission to reuse it. Third-party components and their licences are listed in [THIRD_PARTY.md](THIRD_PARTY.md).
+**Licence:** PicoBoy's own code is under the [MIT licence](LICENSE): free to use, copy, change and share, including commercially, as long as the licence text stays with it. The libraries it builds on keep their own (also permissive) licences, listed in [THIRD_PARTY.md](THIRD_PARTY.md) with the texts in [licenses/](licenses/). Contributions: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Credits
+
+PicoBoy was written by [alexJSanchez](https://github.com/alexJSanchez) together with Claude Code (Anthropic's AI coding assistant), and tested on a real PicoSystem. It stands on the work of others:
 
 [Peanut-GB](https://github.com/deltabeard/Peanut-GB) and `minigb_apu` by Mahyar Koshkouei (MIT, `minigb_apu` based on MiniGBS by Alex Baines), the [Pico SDK](https://github.com/raspberrypi/pico-sdk) by Raspberry Pi, and the [PicoSystem SDK](https://github.com/pimoroni/picosystem) by Pimoroni. Test ROMs: Blargg's `cpu_instrs` and Matt Currie's `dmg-acid2` (MIT), downloaded by script and never committed; the two screenshots above are their output.

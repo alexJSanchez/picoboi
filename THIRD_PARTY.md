@@ -1,15 +1,19 @@
 # Third-party software
 
-Each dependency is a pinned git submodule under `third_party/`. Exact versions are recorded in `docs/DECISIONS.md`. Full license texts are in each submodule (paths below).
+PicoBoy's own code is under the [MIT licence](LICENSE). The firmware (`picoboy.uf2`) also contains the open-source components below, each under its own licence. Their full licence texts are in the [`licenses/`](licenses/) folder, so they can be kept together with any copy of the firmware. They are pinned git submodules under `third_party/`; exact versions are recorded in [docs/DECISIONS.md](docs/DECISIONS.md).
 
-| Dependency | Purpose | License | License text | Status |
-|---|---|---|---|---|
-| Raspberry Pi Pico SDK 2.3.1 | RP2040 SDK | BSD 3-Clause, (c) 2020 Raspberry Pi (Trading) Ltd | `third_party/pico-sdk/LICENSE.TXT` | added |
-| TinyUSB (via the Pico SDK) | USB serial logging | MIT, (c) 2018 hathach | `third_party/pico-sdk/lib/tinyusb/LICENSE` | added (SDK submodule) |
-| Pimoroni PicoSystem SDK (`9a26b2a`) | Display, input, audio for PicoSystem | MIT, (c) 2021 Pimoroni Ltd | `third_party/picosystem/LICENSE` | added |
-| Peanut-GB v1.3.0 | Game Boy emulation core | MIT, (c) 2018-2023 Mahyar Koshkouei | full text at the top of `third_party/peanut_gb/peanut_gb.h` | added |
-| minigb_apu (the copy bundled in Peanut-GB v1.3.0 at `third_party/peanut_gb/examples/sdl2/minigb_apu/`) | Game Boy audio | MIT, (c) 2019 Mahyar Koshkouei, (c) 2017 Alex Baines (based on MiniGBS, MIT) | `third_party/peanut_gb/examples/sdl2/minigb_apu/LICENSE` | in the pinned submodule; not yet compiled into the firmware |
+| Component | Used for | Licence | Full text |
+|---|---|---|---|
+| [Peanut-GB](https://github.com/deltabeard/Peanut-GB) v1.3.0 (Mahyar Koshkouei) | The Game Boy emulator itself. It contains a little code taken from [SameBoy](https://github.com/LIJI32/SameBoy) (Lior Halphon), also MIT | MIT | [licenses/Peanut-GB.txt](licenses/Peanut-GB.txt) |
+| minigb_apu, the copy bundled in Peanut-GB (Mahyar Koshkouei, Alex Baines; based on [MiniGBS](https://github.com/baines/MiniGBS)) | Game Boy sound | MIT | [licenses/minigb_apu.txt](licenses/minigb_apu.txt) |
+| [Raspberry Pi Pico SDK](https://github.com/raspberrypi/pico-sdk) 2.3.1 | Everything on the RP2040 chip (clocks, DMA, PWM, flash, USB glue) | BSD 3-Clause | [licenses/pico-sdk.txt](licenses/pico-sdk.txt) |
+| [Pimoroni PicoSystem SDK](https://github.com/pimoroni/picosystem) (commit `9a26b2a`) | The screen, buttons and board setup of the PicoSystem | MIT | [licenses/picosystem.txt](licenses/picosystem.txt) |
+| [TinyUSB](https://github.com/hathach/tinyusb) (through the Pico SDK) | USB serial log | MIT | [licenses/tinyusb.txt](licenses/tinyusb.txt) |
 
-Build tools (not shipped in the firmware): Arm GNU Toolchain 14.2.Rel1, picotool 2.3.1, pioasm 2.3.1.
+Also linked into the firmware, from the Arm GNU Toolchain 14.2 that builds it: the C library (newlib) and the compiler's runtime libraries (libgcc, libstdc++). Their licences (BSD-style for newlib; GPL with the GCC Runtime Library Exception for libgcc and libstdc++) allow distributing programs built with them; the toolchain's own licence files ship with the toolchain.
 
-This project is an emulator for original Game Boy games. It does not include or distribute any game ROM or boot ROM.
+Build and test tools that are *not* part of the firmware: CMake, Ninja, Python, `picotool` and `pioasm` (Raspberry Pi, BSD 3-Clause).
+
+Test ROMs used by the automatic tests are downloaded when you run `tools/fetch_test_roms.sh`, never committed, and not part of the firmware: Blargg's `cpu_instrs` and Matt Currie's [`dmg-acid2`](https://github.com/mattcurrie/dmg-acid2) (MIT). The two screenshots in `docs/images/` are the output of those programs.
+
+This project is an emulator. It contains no game code, no console boot ROM, and no Nintendo artwork. It is not affiliated with or endorsed by Nintendo, Raspberry Pi or Pimoroni.

@@ -298,3 +298,9 @@ Serves Phase 3 acceptance ("ROMs flashed via UF2 appear in the list and launch; 
 - **Consequence for the earlier rule** ("save 2 s after the game stops changing its RAM"): with Pokemon it would have saved to flash at moments such as the start of a battle, each with a half-second pause, which is what the author asked to avoid.
 - **Change:** the core counts RAM changes per 8 KiB bank (`pb_core_cart_ram_generation_banks`, host-tested with a two-bank ROM). The save manager takes the game's title and, for POKEMON RED / BLUE / YELLOW / GREEN, only counts banks 1 and up when deciding that the game saved; a flush still writes the whole RAM. Other games keep "any change" (the table is deliberately small and evidence-based; Yellow, Blue and Green were assigned by analogy with Red and are **not** verified). Saving on leaving a game uses the same rule.
 - Not yet checked on the device: that the device now saves only after the in-game SAVE for Pokemon Red (expect no `SAVED` in the bar at battle starts), and what Zelda's RAM does (see `docs/COMPAT.md`).
+
+### 2026-11-25 — Licence and public release
+- **Decision:** PicoBoy's own code is MIT-licensed, "Copyright (c) 2026 alexJSanchez". Chosen because the owner wants anyone to be able to use the project, has no company, and does not want to claim exclusive rights. MIT is compatible with every dependency (Peanut-GB/minigb_apu MIT, pico-sdk BSD-3, picosystem MIT, TinyUSB MIT).
+- Licence texts of the dependencies are kept in `licenses/` and shipped in the release zip, because the firmware contains their code.
+- Releases: pushing a `v*` tag runs `.github/workflows/release.yml`, which builds the default firmware and publishes only `picoboy.uf2`, a checksum and the licence zip. It refuses to publish if `PB_EMBED_ROM` is set or the binary is over 400,000 bytes. **The workflow has not yet run on GitHub** (only its check was run locally).
+- Never published: `library.uf2`, or any firmware built with a ROM embedded.
