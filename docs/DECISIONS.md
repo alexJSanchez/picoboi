@@ -13,7 +13,7 @@ Nothing is pinned yet. Fill in when each dependency is added (adding one needs e
 | Arm GNU Toolchain (arm-none-eabi-gcc) | 14.2.Rel1 (gcc 14.2.1) | 2026-11-25 | n/a (toolchain, not shipped) |
 | picotool (host tool) | 2.3.1 | 2026-11-25 | n/a (build tool) |
 | pioasm (host tool) | 2.3.1 | 2026-11-25 | n/a (build tool) |
-| peanut_gb | _not added_ | | |
+| peanut_gb | tag `v1.3.0` (commit `44d85f6`, deltabeard/Peanut-GB) | 2026-11-25 | MIT (header of `peanut_gb.h`) |
 | minigb_apu | _not added_ | | |
 
 ## Open decisions (PLAN.md section 12)
@@ -68,3 +68,14 @@ Serves Phase 0 acceptance ("CI builds the UF2"). `.github/workflows/build.yml`: 
 - CI does not use the `-Dpicotool_DIR` / `-Dpioasm_DIR` flags; the SDK builds both from source on the runner (it has a host compiler). This is untested until the first run on GitHub.
 - The 1 MiB check is on the `.bin` size for now. The real linker-enforced cap arrives in Phase 3.
 - Host unit tests are not part of CI yet; there are none until `storage/` exists.
+
+### 2026-11-25 — Phase 1: Peanut-GB pinned, API facts from source
+
+Serves Phase 1 ("Vendor Peanut-GB at a pinned commit under `third_party/`").
+
+- Added `third_party/peanut_gb` as a submodule at tag `v1.3.0` (`44d85f6`). License is MIT (checked in the `peanut_gb.h` header; the repo has no separate LICENSE file). `minigb_apu` is not added yet (Phase 5).
+- **[VERIFY] #4 resolved:** `sizeof(struct gb_s)` is 16,916 bytes (0x4214) on Cortex-M0+ (`arm-none-eabi-gcc` 14.2.1, `-O2`) with `ENABLE_SOUND 0`, `ENABLE_LCD 1`, `PEANUT_GB_HIGH_LCD_ACCURACY` at its default of 1. The plan estimated about 19 KiB, so the real figure is about 2 KiB better. Re-measure if the configuration macros change.
+- **[VERIFY] #5 resolved from the pinned source:** `lcd_draw_line(gb, pixels, line)` gets 160 bytes; bits 1-0 are the shade (0 to 3), and with `PEANUT_GB_12_COLOUR` (default 1) bits 5-4 select the palette (OBJ0 = 0b00, OBJ1 = 0b01, BG = 0b10). `line` is 0 to 143. Joypad is `gb->direct.joypad`, **active-low** (bit set = released; initial value 0xFF), bits: A=0x01, B=0x02, SELECT=0x04, START=0x08, RIGHT=0x10, LEFT=0x20, UP=0x40, DOWN=0x80. Our `pb_core_set_buttons()` stays active-high and the adapter inverts.
+- Peanut-GB's own `test/` folder ships `cpu_instrs.h` and `dmg-acid2.gb.h` (test ROMs as C headers) and a serial-output pass check. They live in the submodule, not in our tree. Their licenses (Blargg's tests are LGPL; dmg-acid2 is by Matt Currie) must be checked before we copy or build against them, per PLAN.md section 9; until then we do not vendor them.
+- `gb_init()` returns an error for unsupported cartridge types and bad header checksums (`GB_INIT_CARTRIDGE_UNSUPPORTED`, `GB_INIT_INVALID_CHECKSUM`); `gb_get_save_size()` gives the cart RAM size. The header is single-file: implementation is compiled into whichever translation unit includes it without `PEANUT_GB_HEADER_ONLY`, so only `core/` should include it.
+- **Host compiler:** this machine has no host C compiler, so the PC build and host tests (Phase 1 items 6 and 7) cannot be run locally until one is installed.
