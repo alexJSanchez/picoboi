@@ -60,3 +60,11 @@ Serves Phase 0 acceptance ("UF2 flashes; all 8 buttons visibly respond"). Tested
 - **[VERIFY] #7 resolved: `stdio_usb` works alongside the PicoSystem SDK** (pico-sdk 2.3.1, picosystem `9a26b2a`). The device enumerates as a composite USB device, VID `2E8A` PID `000A`: a CDC serial port (COM7 on this PC, 115200 8N1) plus the SDK's vendor "Reset" interface, which Windows lists under "Universal Serial Bus devices" as "Reset". Button down/up lines were read from the serial port while pressing B, A, Y, X. The one-shot boot banner was not captured (port opened after boot); not a concern.
 - Confirmed: runs on battery with no USB host attached (HARDWARE_TESTS.md row 9). Exact splash timing not measured.
 - Remaining for Phase 0 acceptance: CI builds the UF2 (backlog item 4).
+
+### 2026-11-25 — Phase 0, backlog item 4: CI workflow
+
+Serves Phase 0 acceptance ("CI builds the UF2"). `.github/workflows/build.yml`: on push to `main` and on pull requests, builds on `ubuntu-24.04` with Arm GNU 14.2.Rel1 downloaded from Arm (same version as local builds), configures and builds with Ninja, fails if `picoboy.bin` exceeds 1 MiB, and uploads `picoboy.uf2` as an artifact (firmware only, no ROM).
+
+- CI does not use the `-Dpicotool_DIR` / `-Dpioasm_DIR` flags; the SDK builds both from source on the runner (it has a host compiler). This is untested until the first run on GitHub.
+- The 1 MiB check is on the `.bin` size for now. The real linker-enforced cap arrives in Phase 3.
+- Host unit tests are not part of CI yet; there are none until `storage/` exists.
