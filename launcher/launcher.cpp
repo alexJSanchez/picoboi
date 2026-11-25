@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "launcher_model.h"
+#include "save_manager.h"
 #include "ui.h"
 
 namespace {
@@ -103,6 +104,16 @@ void launcher_draw_save_prompt() {
 void launcher_draw() {
   ui_clear(BG);
   ui_text(10, 8, "PICOBOY", TITLE);
+  {
+    char st[28];
+    const SaveState ss = saves_state();
+    if (ss == SaveState::Ready) {
+      snprintf(st, sizeof(st), "SAVES ON  %u stored", (unsigned)saves_game_count());
+    } else {
+      snprintf(st, sizeof(st), "SAVES OFF");
+    }
+    ui_text(230 - ui_text_width(st), 8, st, ss == SaveState::Ready ? ui_color{6, 15, 6} : WARN);
+  }
   ui_rect(10, 22, 220, 1, HINT);
 
   if (g_model.count == 0) {
@@ -127,7 +138,11 @@ void launcher_draw() {
 
     char size[8];
     lm_format_bytes(e.size, size, sizeof(size));
-    ui_text(228 - ui_text_width(size), y + 2, size, selected ? HILITE_TX : DIM);
+    const int size_x = 228 - ui_text_width(size);
+    ui_text(size_x, y + 2, size, selected ? HILITE_TX : DIM);
+    if (saves_has_save(e.rom_crc32)) {  // a stored save was found for this game
+      ui_text(size_x - 8 - ui_text_width("saved"), y + 2, "saved", ui_color{6, 15, 6});
+    }
   }
 
   // Scroll hints when the list is longer than the screen.

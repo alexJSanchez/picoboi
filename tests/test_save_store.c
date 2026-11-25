@@ -29,10 +29,11 @@ typedef struct {
   long ops;            // operations attempted since the last reset of the counter
   bool crashed;        // power is gone: all operations are refused until reboot()
   long violations;
+  bool protect;        // commands report success but change nothing (write-protected or failing chip)
 } sim_t;
 
 static uint8_t g_mem[PB_FLASH_USER_END];
-static sim_t g_sim = {g_mem, -1, 0, 128, 0, false, 0};
+static sim_t g_sim = {g_mem, -1, 0, 128, 0, false, 0, false};
 
 static const uint8_t *sim_read(void *ctx, uint32_t off) { return ((sim_t *)ctx)->mem + off; }
 
@@ -59,6 +60,7 @@ static bool sim_erase(void *ctx, uint32_t off, uint32_t len) {
     s->violations++;
     return false;
   }
+  if (s->protect) return true;  // silently ignored
   const bool failing_now = s->crashed ? false : (s->ops_until_fail == 0);
   if (!step(s)) {
     if (failing_now) {  // partial erase: first sectors done, the next one left as garbage
@@ -80,6 +82,7 @@ static bool sim_program(void *ctx, uint32_t off, const uint8_t *data, uint32_t l
     s->violations++;
     return false;
   }
+  if (s->protect) return true;  // silently ignored
   for (uint32_t i = 0; i < len; i++)
     if (s->mem[off + i] != 0xFF) {  // real flash can only clear bits; the store must erase first
       s->violations++;
@@ -121,6 +124,7 @@ static void sim_reset_blank(void) {
   g_sim.progress = 0;
   g_sim.ops = 0;
   g_sim.crashed = false;
+  g_sim.protect = false;
 }
 
 static void reboot(void) {
@@ -460,6 +464,38 @@ static void test_seq_wraparound(void) {
   CHECK(outside_unchanged());
 }
 
+// A chip that accepts erase and program commands but does not change (write protection, a failing
+// part): the store must report failure, never "saved", and must keep the previous save.
+static void test_silent_write_failure(void) {
+  static uint8_t p1[8192], p2[8192];
+  fill(p1, 8192, 1);
+  fill(p2, 8192, 2);
+
+  // Claiming a protected region fails.
+  sim_reset_blank();
+  g_sim.protect = true;
+  pb_flash_ops_t o = ops();
+  CHECK(pb_save_format(&g_store, &o, 5) == PB_SAVE_ERR_FLASH);
+  CHECK(!g_store.ready);
+
+  // A save to a chip that stopped changing: error, previous save intact, nothing half-recorded.
+  sim_reset_blank();
+  format_store(5);
+  CHECK(pb_save_write(&g_store, 0x77, p1, 8192) == PB_SAVE_OK);
+  g_sim.protect = true;
+  CHECK(pb_save_write(&g_store, 0x77, p2, 8192) == PB_SAVE_ERR_FLASH);
+  CHECK(pb_save_write(&g_store, 0x78, p2, 8192) == PB_SAVE_ERR_FLASH);  // a first save too
+  g_sim.protect = false;
+  CHECK(open_store() == PB_SAVE_OK);
+  CHECK(load_equals(0x77, p1, 8192));
+  uint32_t len;
+  CHECK(load(0x78, &len) == PB_SAVE_NOT_FOUND);
+  // Once the chip works again, saving works.
+  CHECK(pb_save_write(&g_store, 0x77, p2, 8192) == PB_SAVE_OK);
+  CHECK(load_equals(0x77, p2, 8192));
+  CHECK(g_sim.violations == 0);
+}
+
 static void test_full_region(void) {
   static uint8_t data[32768];
   sim_reset_blank();
@@ -495,6 +531,7 @@ int main(void) {
   test_roundtrip_and_alternation();
   test_power_loss();
   test_corruption();
+  test_silent_write_failure();
   test_seq_wraparound();
   test_full_region();
 

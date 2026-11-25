@@ -121,15 +121,38 @@ bool saves_begin_game(uint32_t key, uint8_t *ram, uint32_t ram_size) {
   g_overlay_text = nullptr;
   pb_savepol_init(&g_pol, 0);  // the core starts counting at 0
 
-  if (g_state != SaveState::Ready || ram_size == 0) return false;
+  if (g_state != SaveState::Ready || ram_size == 0) {
+    if (ram_size != 0) show("SAVING IS OFF", true, picosystem::time(), 3000);
+    return false;
+  }
   uint32_t len = 0;
   const pb_save_status_t st = pb_save_load(&g_store, key, ram, ram_size, &len);
   if (st == PB_SAVE_OK) {
     printf("saves: loaded %u bytes for ROM %08x\n", (unsigned)len, (unsigned)key);
+    show("SAVE LOADED", false, picosystem::time(), 2500);
     return true;
   }
   printf("saves: no save for ROM %08x yet\n", (unsigned)key);
+  show("NO SAVE YET", false, picosystem::time(), 2500);
   return false;
+}
+
+bool saves_has_save(uint32_t key) {
+  if (g_state != SaveState::Ready) return false;
+  for (uint32_t i = 0; i < g_store.n_copies; i++)
+    if (g_store.copies[i].key == key) return true;
+  return false;
+}
+
+uint32_t saves_game_count() {
+  if (g_state != SaveState::Ready) return 0;
+  uint32_t n = 0;
+  for (uint32_t i = 0; i < g_store.n_copies; i++) {
+    bool seen = false;
+    for (uint32_t j = 0; j < i; j++) seen = seen || g_store.copies[j].key == g_store.copies[i].key;
+    if (!seen) n++;
+  }
+  return n;
 }
 
 void saves_tick(const pb_core_t *core) {

@@ -108,6 +108,9 @@ pb_save_status_t pb_save_format(pb_save_store_t *s, const pb_flash_ops_t *ops, u
   wr32(s->page + 12, pb_crc32(s->page, 12));
   if (!pb_flash_program_allowed(PB_SETTINGS_OFFSET, PB_FLASH_PAGE_SIZE)) return PB_SAVE_ERR_FLASH;
   if (!ops->program(ops->ctx, PB_SETTINGS_OFFSET, s->page, PB_FLASH_PAGE_SIZE)) return PB_SAVE_ERR_FLASH;
+  // Read it back: a chip that accepts the commands but does not change (write protection, a
+  // failed write) must not be reported as success.
+  if (memcmp(ops->read(ops->ctx, PB_SETTINGS_OFFSET), s->page, PB_SAVE_CLAIM_SIZE) != 0) return PB_SAVE_ERR_FLASH;
 
   s->store_id = store_id;
   s->ready = true;
@@ -249,6 +252,12 @@ pb_save_status_t pb_save_write(pb_save_store_t *s, uint32_t key, const uint8_t *
   wr32(s->page + 28, pb_crc32(s->page, 28));
   if (!pb_flash_program_allowed(base, PB_FLASH_PAGE_SIZE)) return PB_SAVE_ERR_FLASH;
   if (!s->ops.program(s->ops.ctx, base, s->page, PB_FLASH_PAGE_SIZE)) return PB_SAVE_ERR_FLASH;
+
+  // 4. Read it all back from flash. Only a copy that reads back exactly as written counts as saved;
+  //    otherwise the caller must not tell the player "saved". (A failed copy is simply not
+  //    valid, and the previous save is untouched.)
+  if (memcmp(s->ops.read(s->ops.ctx, base), s->page, PB_SAVE_HEADER_SIZE) != 0) return PB_SAVE_ERR_FLASH;
+  if (memcmp(s->ops.read(s->ops.ctx, base + PB_FLASH_SECTOR_SIZE), data, len) != 0) return PB_SAVE_ERR_FLASH;
 
   if (s->n_copies < PB_SAVE_MAX_COPIES) {
     pb_save_copy_t *c = &s->copies[s->n_copies++];

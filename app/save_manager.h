@@ -37,6 +37,10 @@ void saves_decline();
 // the core is initialised. Returns true if a save was loaded.
 bool saves_begin_game(uint32_t key, uint8_t *ram, uint32_t ram_size);
 
+// For the game list: is there a stored save for this ROM, and for how many games in total.
+bool saves_has_save(uint32_t key);
+uint32_t saves_game_count();
+
 void saves_tick(const pb_core_t *core);
 void saves_end_game(const pb_core_t *core);
 
