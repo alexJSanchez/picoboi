@@ -82,3 +82,5 @@ Firmware: `build-lib/picoboy.uf2` (the default build). The library stays as it i
 | 8 | Power-cut test (needs the author): in a game save, then cut power (battery out or unplug while on battery) at random moments for a while, including during the `SAVED` pause. | After every restart the game offers either the previous or the new save; never a corrupted or empty one. (The PC test cuts the power at every operation; this checks the real flash.) |
 
 Record the save time per game in `docs/DECISIONS.md`.
+
+Result of the Phase 4 test, 2026-11-25 (author's report on the final firmware, commit 09dcc17): the game's own save is still there after turning the PicoSystem off and on ("works beautifully"). Not exercised: the power-cut test (row 8), Zelda's save, the "play without saving" answer (row 7), and the failure paths ("SAVE FAILED", full save area).
