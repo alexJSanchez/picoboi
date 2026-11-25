@@ -26,6 +26,9 @@ picosystem_executable(picoboy
   core/pb_audio_sync.c
   third_party/peanut_gb/examples/sdl2/minigb_apu/minigb_apu.c
 )
+# Own copy of the SDK's linker script: runs the emulator code from RAM (see ld/picoboy_memmap.ld).
+pico_set_linker_script(picoboy ${CMAKE_CURRENT_LIST_DIR}/ld/picoboy_memmap.ld)
+set_target_properties(picoboy PROPERTIES LINK_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/ld/picoboy_memmap.ld)
 target_include_directories(picoboy PRIVATE core platform third_party/peanut_gb
   third_party/peanut_gb/examples/sdl2/minigb_apu)
 target_compile_definitions(picoboy PRIVATE MINIGB_APU_AUDIO_FORMAT_S16SYS=1)
