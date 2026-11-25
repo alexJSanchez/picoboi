@@ -17,6 +17,13 @@ These are two free test programs run through the emulator code of this project, 
 <img src="docs/images/cpu_instrs.png" alt="cpu_instrs test results: 11 of 11 ok, Passed all tests" width="300">
 </p>
 
+And two of the games it has been tried on (screenshots from the same emulator code on a PC, not photographs of the device; the artwork belongs to Nintendo and is shown here only to illustrate the emulator): *Pokémon Red* (Professor Oak's introduction) and *The Legend of Zelda: Link's Awakening* (the opening storm).
+
+<p>
+<img src="docs/images/pokemon-red.png" alt="Pokemon Red: Professor Oak introducing himself" width="300">
+<img src="docs/images/links-awakening.png" alt="Link's Awakening: the opening scene of a ship in a storm" width="300">
+</p>
+
 ---
 
 ## What it does

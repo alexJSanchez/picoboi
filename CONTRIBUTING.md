@@ -4,7 +4,7 @@ Thanks for looking. Anything that helps people play Game Boy games on the PicoSy
 
 ## The one hard rule
 
-**Never add game files to this repository, in any form**: no `.gb`/`.gbc` ROMs, no saves (`.sav`), no UF2 files that contain games (`library.uf2` or any firmware built with `-DPB_EMBED_ROM`), no Nintendo boot ROM, no screenshots of commercial games. The `.gitignore` blocks the obvious ones; please do not work around it. Test with free homebrew or the test ROMs the scripts download.
+**Never add game files to this repository, in any form**: no `.gb`/`.gbc` ROMs, no saves (`.sav`), no UF2 files that contain games (`library.uf2` or any firmware built with `-DPB_EMBED_ROM`), no Nintendo boot ROM. (The two existing screenshots of commercial games are the owner's illustration of the emulator; please do not add more without asking.) The `.gitignore` blocks the obvious ones; please do not work around it. Test with free homebrew or the test ROMs the scripts download.
 
 ## Reporting
 

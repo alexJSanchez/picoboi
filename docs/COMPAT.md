@@ -17,7 +17,7 @@ build-host/play_rom "roms/YourGame.gb" 3000 --press START@1500+4 --press A@1650+
 python tools/frames_to_png.py shot.bmp shot.png --scale 3
 ```
 
-Screenshots of commercial games are **not** kept in the repository (they are other people's artwork). The pictures in this repository come from free test programs.
+The repository holds two screenshots of commercial games (`docs/images/pokemon-red.png`, `docs/images/links-awakening.png`), made this way, only to show the emulator working; the artwork belongs to its owners. No game *files* are in the repository. The other pictures come from free test programs.
 
 ## Summary
 
