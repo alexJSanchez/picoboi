@@ -25,8 +25,11 @@ Game Boy (DMG-only for v1) emulator for the Pimoroni PicoSystem (RP2040), built 
 ## Build
 ```sh
 git submodule update --init --recursive
-cmake -S . -B build -DPICO_SDK_PATH=third_party/pico-sdk
+cmake -S . -B build -G Ninja -DPICO_SDK_PATH=third_party/pico-sdk
 cmake --build build -j
+# arm-none-eabi-gcc must be on PATH. If the machine has no host C compiler, the SDK cannot
+# build picotool/pioasm itself; add -Dpicotool_DIR=<prebuilt dir> -Dpioasm_DIR=<prebuilt dir>
+# (see docs/DECISIONS.md, 2026-11-25).
 # host tests
 cmake -S tests -B build-host && cmake --build build-host && ctest --test-dir build-host
 ```
