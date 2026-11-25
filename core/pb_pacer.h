@@ -13,7 +13,9 @@
 #define PB_FRAME_PERIOD_NS 16742706u
 // Never owe more than this many frames at once; if we are further behind than that
 // (long stall, slow scene) we drop the backlog instead of racing to catch up.
-#define PB_PACER_MAX_CATCH_UP 3u
+// 2 is deliberate: on the 40 Hz panel a refresh needing 3 frames takes too long, misses
+// the next vsync, and then owes 3 again (measured: locks the display at 20 Hz).
+#define PB_PACER_MAX_CATCH_UP 2u
 
 #ifdef __cplusplus
 extern "C" {

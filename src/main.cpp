@@ -46,6 +46,7 @@ struct Stat {
 Stat g_emu_us;     // time to emulate one Game Boy frame
 Stat g_draw_us;    // time spent in draw() emulating, per display refresh
 Stat g_period_us;  // time between display refreshes
+Stat g_flip_us;    // SDK: time from flip start until the transfer finished
 uint32_t g_draws = 0;
 uint32_t g_emulated = 0;      // Game Boy frames emulated in this window
 uint32_t g_window_start_us = 0;
@@ -117,6 +118,7 @@ void draw(uint32_t) {
   }
   g_emulated += due;
   g_draw_us.add(time_us() - draw_start);
+  g_flip_us.add(stats.flip_us);
 
   if (++g_draws == BENCH_DRAWS) {
     const uint32_t elapsed_us = time_us() - g_window_start_us;
@@ -126,11 +128,13 @@ void draw(uint32_t) {
            (unsigned)g_draws, (unsigned)g_emulated, (unsigned)(fps_x100 / 100),
            (unsigned)(fps_x100 % 100), (unsigned)g_emu_us.min,
            (unsigned)(g_emulated ? g_emu_us.sum / g_emulated : 0), (unsigned)g_emu_us.max,
-           (unsigned)g_draw_us.max, (unsigned)(g_period_us.sum / (g_draws - 1)),
+           (unsigned)g_draw_us.max, (unsigned)(g_flip_us.sum / g_draws), (unsigned)g_flip_us.max,
+           (unsigned)(g_period_us.sum / (g_draws - 1)),
            (unsigned)g_period_us.max);
     g_emu_us.reset();
     g_draw_us.reset();
     g_period_us.reset();
+    g_flip_us.reset();
     g_draws = 0;
     g_emulated = 0;
   }
