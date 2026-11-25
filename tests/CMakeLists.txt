@@ -48,3 +48,9 @@ add_executable(test_audio_sync test_audio_sync.c ${ROOT}/core/pb_audio_sync.c)
 target_include_directories(test_audio_sync PRIVATE ${ROOT}/core)
 target_compile_options(test_audio_sync PRIVATE -Wall -Wextra)
 add_test(NAME audio_sync COMMAND test_audio_sync)
+
+# Flash layout: region guards and the write-allowed checks.
+add_executable(test_flash_layout test_flash_layout.c)
+target_include_directories(test_flash_layout PRIVATE ${ROOT}/storage)
+target_compile_options(test_flash_layout PRIVATE -Wall -Wextra)
+add_test(NAME flash_layout COMMAND test_flash_layout)

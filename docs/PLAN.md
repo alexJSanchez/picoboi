@@ -115,16 +115,18 @@ Note: 120×120 pixel-double mode is too coarse for a 160×144 screen. Use 240×2
  
 ---
  
-## 5. Flash layout (16 MiB = 0x1000000)
+## 5. Flash layout (first 12 MiB of the 16 MiB chip)
  
-Reserve regions in a custom linker script; **never** write to flash outside them.
+Reserve regions in a custom linker script; **never** write to flash outside them. The exact numbers live in `storage/flash_layout.h` and `docs/FLASH_LAYOUT.md` (updated 2026-11-25: 12 MiB limit; the table below was changed to match).
  
 | Region | Offset | Size | Purpose |
 |---|---|---|---|
 | Firmware | 0x000000 | 1 MiB | Code + constants. Linker `FLASH` length capped here so overflow is a build error |
 | Library index | 0x100000 | 4 KiB | One sector: header + ROM entries |
-| ROM area | 0x101000 | ≈12.9 MiB | ROMs stored back to back, each 4 KiB-aligned, **contiguous** |
-| Save area | 0xE00000 | 2 MiB | Saves + settings |
+| ROM area | 0x101000 | ≈9.0 MiB (to 0xA00000) | ROMs stored back to back, each 4 KiB-aligned, **contiguous** |
+| Settings | 0xA00000 | 8 KiB | Two sectors (A/B copies), written by the firmware |
+| Save slots | 0xA02000 | ≈2.0 MiB (to 0xC00000) | Battery saves, written by the firmware |
+| Not ours | 0xC00000 | 4 MiB | Reserved by the PicoSystem SDK for its FAT filesystem; never touched (decision 2026-11-25) |
  
 XIP base address is 0x10000000, so ROM N is read at `0x10000000 + entry.offset`. **[VERIFY region sizes against real firmware size and the PicoSystem bootloader.]**
  
