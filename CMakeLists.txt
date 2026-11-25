@@ -42,6 +42,11 @@ target_compile_definitions(picoboy PRIVATE MINIGB_APU_AUDIO_FORMAT_S16SYS=1)
 # the SDK it may assume core 1 is safe (otherwise it refuses to run). Revisit if core 1 is ever used.
 target_link_libraries(picoboy pico_flash hardware_flash)
 target_compile_definitions(picoboy PRIVATE PICO_FLASH_ASSUME_CORE1_SAFE=1)
+# The default board is a 2 MiB Pico, but the PicoSystem has 16 MiB and our save regions are at 10 MiB.
+# The SDK's flash_range_erase/program have an always-on check against PICO_FLASH_SIZE_BYTES that halts
+# the program (with interrupts off) for offsets beyond it, so it must say 16 MiB. Checked at build
+# time by a static_assert in platform/flash_ops.cpp.
+target_compile_definitions(picoboy PRIVATE PICO_FLASH_SIZE_BYTES=16777216)
 
 # Development only: -DPB_EMBED_ROM=<file> builds a ROM into the firmware (read in place via XIP) and
 # runs it directly, skipping the game list; used for benchmarks and the tone build. The ROM is

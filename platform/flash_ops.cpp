@@ -5,6 +5,13 @@
 
 #include "flash_layout.h"
 
+// The SDK's flash_range_erase/program contain an always-on check against PICO_FLASH_SIZE_BYTES that
+// panics (a silent hang with interrupts off) for offsets beyond it. The default board is a 2 MiB
+// Pico, but the PicoSystem has 16 MiB and our save regions are at 10 MiB, so the build must say so
+// (CMakeLists.txt). This makes a wrong value a build error and not a frozen device.
+static_assert(PICO_FLASH_SIZE_BYTES >= PB_FLASH_USER_END,
+              "PICO_FLASH_SIZE_BYTES is smaller than our flash regions: flash writes would hang");
+
 namespace {
 
 struct Job {
