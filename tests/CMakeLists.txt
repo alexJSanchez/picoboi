@@ -69,3 +69,9 @@ if(Python3_FOUND)
 else()
   message(STATUS "Python 3 not found: pack_library tests are not registered")
 endif()
+
+# Launcher list logic (selection, scrolling, labels).
+add_executable(test_launcher_model test_launcher_model.c ${ROOT}/launcher/launcher_model.c)
+target_include_directories(test_launcher_model PRIVATE ${ROOT}/launcher ${ROOT}/storage)
+target_compile_options(test_launcher_model PRIVATE -Wall -Wextra)
+add_test(NAME launcher_model COMMAND test_launcher_model)
