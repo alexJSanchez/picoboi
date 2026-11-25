@@ -29,6 +29,7 @@ typedef struct {
   pb_core_config_t cfg;
   struct minigb_apu_ctx apu;
   audio_sample_t abuf[PB_AUDIO_SAMPLES_PER_FRAME * 2];  // stereo from the APU, mixed to mono in place
+  uint32_t apu_sum_us, apu_max_us, apu_frames;            // profiling (clock_us)
   bool dirty;
 } impl_t;
 
@@ -131,9 +132,16 @@ void pb_core_run_frame(pb_core_t *c) {
   if (m->cfg.on_audio) {
     // The APU only advances when asked for samples, so this must run once per emulated
     // frame, rendered or not.
+    const uint32_t t0 = m->cfg.clock_us ? m->cfg.clock_us() : 0;
     minigb_apu_audio_callback(&m->apu, m->abuf);
     for (unsigned i = 0; i < AUDIO_SAMPLES; i++)  // in place: reads index 2i, writes i
       m->abuf[i] = (audio_sample_t)(((int32_t)m->abuf[2 * i] + (int32_t)m->abuf[2 * i + 1]) / 2);
+    if (m->cfg.clock_us) {
+      const uint32_t dt = m->cfg.clock_us() - t0;
+      m->apu_sum_us += dt;
+      if (dt > m->apu_max_us) m->apu_max_us = dt;
+      m->apu_frames++;
+    }
     m->cfg.on_audio(m->cfg.user, m->abuf, AUDIO_SAMPLES);
   }
 }
@@ -141,6 +149,14 @@ void pb_core_run_frame(pb_core_t *c) {
 void pb_core_set_rendering(pb_core_t *c, bool on) {
   // Peanut-GB skips all pixel work when the line callback is NULL.
   impl(c)->gb.display.lcd_draw_line = on ? draw_line_cb : NULL;
+}
+
+void pb_core_take_apu_stats(pb_core_t *c, uint32_t *avg_us, uint32_t *max_us, uint32_t *frames) {
+  impl_t *m = impl(c);
+  *avg_us = m->apu_frames ? m->apu_sum_us / m->apu_frames : 0;
+  *max_us = m->apu_max_us;
+  *frames = m->apu_frames;
+  m->apu_sum_us = m->apu_max_us = m->apu_frames = 0;
 }
 
 uint32_t pb_core_cart_ram_needed(const pb_core_t *c) {

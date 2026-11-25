@@ -70,6 +70,9 @@ typedef struct {
   // PB_AUDIO_SAMPLES_PER_FRAME mono samples (signed 16-bit, left and right averaged).
   // The pointer is only valid during the call. Optional: if NULL, audio is not generated.
   void (*on_audio)(void *user, const int16_t *mono, uint32_t count);
+  // Optional microsecond clock. If set, the core times its audio emulation (see
+  // pb_core_take_apu_stats). Used for profiling only.
+  uint32_t (*clock_us)(void);
   void *user;
 } pb_core_config_t;
 
@@ -94,6 +97,10 @@ void pb_core_run_frame(pb_core_t *c);                  // runs until one frame i
 // (draw_line is not called and pixel work is skipped). Used to catch up on frames the
 // display cannot show. Default after init: on.
 void pb_core_set_rendering(pb_core_t *c, bool on);
+
+// Profiling: time spent generating audio per frame since the last call, then reset.
+// Needs config.clock_us; otherwise all values are 0.
+void pb_core_take_apu_stats(pb_core_t *c, uint32_t *avg_us, uint32_t *max_us, uint32_t *frames);
 
 // Cart RAM bytes the loaded cartridge needs (valid after a successful pb_core_init).
 uint32_t pb_core_cart_ram_needed(const pb_core_t *c);

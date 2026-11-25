@@ -82,6 +82,7 @@ void init() {
   cfg.cart_ram_size = sizeof(g_cart_ram);
   cfg.draw_line = display_draw_line;
   cfg.on_error = on_core_error;
+  cfg.clock_us = time_us_32;
 #ifndef PB_AUDIO_TEST_TONE
   cfg.on_audio = on_core_audio;  // game audio; the test-tone build plays tones instead
 #endif
@@ -145,6 +146,10 @@ void update(uint32_t) {
            (unsigned)g_flip_us.avg(), (unsigned)g_flip_us.max,
            (unsigned)g_period_us.avg(), (unsigned)g_period_us.max);
     printf("  blit_us   avg=%u max=%u\n", (unsigned)g_blit_us.avg(), (unsigned)g_blit_us.max);
+    uint32_t apu_avg = 0, apu_max = 0, apu_n = 0;
+    pb_core_take_apu_stats(&g_core, &apu_avg, &apu_max, &apu_n);
+    printf("  apu_us    avg=%u max=%u (frames=%u; part of emu_us)\n", (unsigned)apu_avg,
+           (unsigned)apu_max, (unsigned)apu_n);
     const audio_stats_t au = audio_get_stats();
     printf("  audio %s fill=%d underruns=%u overruns=%u drops=%u dups=%u\n",
            audio_enabled() ? "on" : "muted", (int)au.fill, (unsigned)au.underruns,
