@@ -86,7 +86,15 @@ void audio_init() {
   // 3. Ring buffer prefilled with silence; DMA moves one entry into the PWM compare
   //    register each time the counter wraps (DREQ), forever.
   clear_ring();
+  // The SDK drives the screen with DMA channel 0 (hardware.cpp: `dma_channel = 0`) without
+  // ever claiming it, so a plain "claim any free channel" would hand it to us and break the
+  // screen. Claim channel 0 on its behalf first so ours is a different one.
+  if (!dma_channel_is_claimed(0)) dma_channel_claim(0);
   g_dma = dma_claim_unused_channel(true);
+  if (g_dma == 0) {  // cannot happen after the claim above; never share the screen's channel
+    printf("audio: refusing to use DMA channel 0 (screen)\n");
+    return;
+  }
   dma_channel_config c = dma_channel_get_default_config(g_dma);
   channel_config_set_transfer_data_size(&c, DMA_SIZE_16);
   channel_config_set_read_increment(&c, true);
