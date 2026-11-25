@@ -107,6 +107,9 @@ uint32_t pb_core_cart_ram_needed(const pb_core_t *c);
 
 // Dirty tracking for the save store. Set when a cart RAM write changes a byte.
 bool pb_core_cart_ram_dirty(const pb_core_t *c);
+// Counts the writes that changed a byte of cart RAM (wraps around). The app watches it to find
+// out when the game stopped writing, which is the moment to save.
+uint32_t pb_core_cart_ram_generation(const pb_core_t *c);
 void pb_core_cart_ram_clear_dirty(pb_core_t *c);
 
 #ifdef __cplusplus

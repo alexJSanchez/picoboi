@@ -30,6 +30,7 @@ typedef struct {
   struct minigb_apu_ctx apu;
   audio_sample_t abuf[PB_AUDIO_SAMPLES_PER_FRAME * 2];  // stereo from the APU, mixed to mono in place
   uint32_t apu_sum_us, apu_max_us, apu_frames;            // profiling (clock_us)
+  uint32_t cart_gen;  // number of cart RAM writes that changed a byte
   bool dirty;
 } impl_t;
 
@@ -83,6 +84,7 @@ static void cart_ram_write(struct gb_s *gb, const uint_fast32_t addr, const uint
   if (m->cfg.cart_ram[addr] != val) {
     m->cfg.cart_ram[addr] = val;
     m->dirty = true;
+    m->cart_gen++;
   }
 }
 
@@ -165,4 +167,5 @@ uint32_t pb_core_cart_ram_needed(const pb_core_t *c) {
 }
 
 bool pb_core_cart_ram_dirty(const pb_core_t *c) { return impl_c(c)->dirty; }
+uint32_t pb_core_cart_ram_generation(const pb_core_t *c) { return impl_c(c)->cart_gen; }
 void pb_core_cart_ram_clear_dirty(pb_core_t *c) { impl(c)->dirty = false; }

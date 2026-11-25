@@ -81,3 +81,15 @@ add_executable(test_save_store test_save_store.c ${ROOT}/storage/save_store.c ${
 target_include_directories(test_save_store PRIVATE ${ROOT}/storage)
 target_compile_options(test_save_store PRIVATE -Wall -Wextra)
 add_test(NAME save_store COMMAND test_save_store)
+
+# Cart RAM change tracking in the core.
+add_executable(test_core_ram test_core_ram.c ${CORE_SOURCES})
+target_include_directories(test_core_ram PRIVATE ${ROOT}/core ${ROOT}/third_party/peanut_gb ${APU_DIR})
+target_compile_options(test_core_ram PRIVATE -Wall -Wextra)
+add_test(NAME core_ram COMMAND test_core_ram)
+
+# When to save: idle and maximum-age rules.
+add_executable(test_save_policy test_save_policy.c ${ROOT}/storage/save_policy.c)
+target_include_directories(test_save_policy PRIVATE ${ROOT}/storage)
+target_compile_options(test_save_policy PRIVATE -Wall -Wextra)
+add_test(NAME save_policy COMMAND test_save_policy)
