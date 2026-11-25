@@ -21,6 +21,7 @@ picosystem_executable(picoboy
   platform/display.cpp
   platform/input.cpp
   core/pb_core.c
+  core/pb_pacer.c
 )
 target_include_directories(picoboy PRIVATE core platform third_party/peanut_gb)
 

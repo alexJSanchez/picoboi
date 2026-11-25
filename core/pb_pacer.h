@@ -15,6 +15,10 @@
 // (long stall, slow scene) we drop the backlog instead of racing to catch up.
 #define PB_PACER_MAX_CATCH_UP 3u
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
   uint32_t last_us;
   uint64_t acc_ns;
@@ -26,5 +30,9 @@ void pb_pacer_init(pb_pacer_t *p);
 // now_us: a free-running 32-bit microsecond clock (wraps every ~71 minutes; handled).
 // Returns the number of frames to run now (0 to PB_PACER_MAX_CATCH_UP).
 uint32_t pb_pacer_frames_due(pb_pacer_t *p, uint32_t now_us);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
