@@ -34,11 +34,10 @@ picosystem_executable(picoboy
 target_include_directories(picoboy PRIVATE core platform launcher storage app third_party/peanut_gb
   third_party/peanut_gb/examples/sdl2/minigb_apu)
 target_compile_definitions(picoboy PRIVATE MINIGB_APU_AUDIO_FORMAT_S16SYS=1)
-# Saving to flash is OFF by default (the author chose to play without it for now): with it off, no
-# save code is compiled in and the firmware contains nothing that can write to flash.
-# -DPB_SAVES=ON adds the save store, the save policy, the flash driver and the game-list/overlay
-# parts (tested on the PC; see docs/DECISIONS.md for the hardware findings that went with it).
-option(PB_SAVES "Save the games' battery RAM to flash" OFF)
+# Saving the games' battery RAM to flash (ON by default: the author wants in-game saves to survive
+# power-off). -DPB_SAVES=OFF builds a firmware with no save code at all and nothing that can write
+# to flash (see docs/DECISIONS.md).
+option(PB_SAVES "Save the games' battery RAM to flash" ON)
 if(PB_SAVES)
   target_sources(picoboy PRIVATE storage/save_store.c storage/save_policy.c platform/flash_ops.cpp app/save_manager.cpp)
   target_link_libraries(picoboy pico_flash hardware_flash)

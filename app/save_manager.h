@@ -1,9 +1,8 @@
 // app/save_manager: ties the save store, the save policy and the running game together.
 //
-// SAVING IS OFF BY DEFAULT (the author decided to play without it for now). Without the CMake option
-// PB_SAVES, this header provides do-nothing versions of every function below, nothing about saving
-// is compiled into the firmware, and the firmware has no code that can write to flash. Build with
-// -DPB_SAVES=ON to get the real thing:
+// Saving is ON by default. With -DPB_SAVES=OFF this header provides do-nothing versions of every
+// function below, nothing about saving is compiled into the firmware, and the firmware has no
+// code that can write to flash. What the functions do when saving is on:
 //
 //   boot        saves_init()            opens the store (a blank region is claimed silently; a
 //                                       region holding other data waits for the player's answer)
