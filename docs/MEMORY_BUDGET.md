@@ -2,7 +2,7 @@
 
 Numbers come from the linker output of a real build, not estimates. Replace them whenever the build changes (CLAUDE.md "definition of done").
 
-Build measured: commit `67a661b` (Phase 1: emulator core + embedded 64 KiB test ROM, SDK defaults, 240x240, 250 MHz, Release `-O3`, no audio), pico-sdk 2.3.1, picosystem `9a26b2a`, Arm GNU 14.2.Rel1.
+Build measured: commit `4517dad` plus the stats fix that follows it (emulator core + embedded 64 KiB test ROM + off-screen frame buffer, SDK defaults, 240x240, 250 MHz, Release `-O3`, no audio), pico-sdk 2.3.1, picosystem `9a26b2a`, Arm GNU 14.2.Rel1.
 
 How to reproduce:
 ```sh
@@ -19,20 +19,21 @@ The picosystem linker script (`third_party/picosystem/libraries/memmap_picosyste
 | SDK framebuffer `picosystem::_fb` (240x240, 16-bit) | 115,200 | 112.5 |
 | Cart RAM buffer `g_cart_ram` (sized for Pokemon, 32 KiB) | 32,768 | 32.0 |
 | Emulator state `g_core` (`pb_core_t`, holds `struct gb_s` = 16,916 B) | 20,480 | 20.0 |
-| Other `.bss` (USB, SDK tables, etc.) | 5,156 | 5.0 |
-| **`.bss` total** | **173,604** | **169.5** |
-| `.data` (initialised data, copied from flash at boot) | 9,804 | 9.6 |
+| Off-screen Game Boy frame `g_shade` (160x144, 1 byte per pixel) | 23,040 | 22.5 |
+| Other `.bss` (USB, SDK tables, etc.) | 5,188 | 5.1 |
+| **`.bss` total** | **196,676** | **192.1** |
+| `.data` (initialised data, copied from flash at boot) | 9,868 | 9.6 |
 | `.ram_vector_table` | 192 | 0.2 |
 | `.heap` (reserved by the linker script) | 2,048 | 2.0 |
-| **Used in main RAM** | **185,648** | **181.3** |
+| **Used in main RAM** | **208,784** | **203.9** |
 | Main RAM capacity | 262,144 | 256.0 |
-| **Free in main RAM** | **76,496** | **74.7** |
+| **Free in main RAM** | **53,360** | **52.1** |
 | Core 0 stack (in SCRATCH_Y, separate from main RAM) | 2,048 | 2.0 |
 | SCRATCH_X free / SCRATCH_Y remaining | 4,096 / 2,048 | 4.0 / 2.0 |
 
-Compared with `docs/PLAN.md` section 4: the plan estimated about 200 KiB used and 64 KiB headroom; measured use is 181 KiB with 74.7 KiB free in main RAM. Differences: the sprite sheet is in flash, not RAM (see `docs/DECISIONS.md`), `gb_s` is smaller than estimated, and hot code is not yet copied to RAM.
+Compared with `docs/PLAN.md` section 4: the plan estimated about 200 KiB used and 64 KiB headroom; measured use is now 204 KiB with 52.1 KiB free in main RAM (it was 181 KiB / 74.7 KiB before the 22.5 KiB off-screen frame buffer was added for pacing, see `docs/DECISIONS.md`). Differences: the sprite sheet is in flash, not RAM (see `docs/DECISIONS.md`), `gb_s` is smaller than estimated, and hot code is not yet copied to RAM.
 
-Not yet included (planned): hot emulator code in RAM (about 24 KiB estimated, Phase 2), audio ring buffer (about 4 KiB, Phase 5), launcher and save-store buffers (Phases 3 and 4). These fit inside the 74.7 KiB free.
+Not yet included (planned): hot emulator code in RAM (about 24 KiB estimated, Phase 2), audio ring buffer (about 4 KiB, Phase 5), launcher and save-store buffers (Phases 3 and 4). These fit inside the 52.1 KiB free, with room to spare for about 24 KiB of hot code plus audio and save buffers, but not much more.
 
 The ROM is not in RAM: it is read-only data in flash and read in place through XIP.
 

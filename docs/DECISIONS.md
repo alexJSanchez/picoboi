@@ -119,3 +119,20 @@ Serves Phase 2 acceptance ("linker map reviewed; memory budget table updated wit
 - **Result:** main RAM used 185,648 B (181.3 KiB) of 262,144 B, **74.7 KiB free**, with the framebuffer, a 32 KiB cart RAM buffer and the emulator state all in place. This is better than the plan's 64 KiB estimate. The framebuffer-bypass fallback in PLAN.md section 4 is not needed at this point.
 - **[VERIFY] #1 fully resolved:** `_fb` is 115,200 B in main RAM. Core 0's stack is 2 KiB in SCRATCH_Y; SCRATCH_X (4 KiB) is free while core 1 is unused.
 - **New finding for Phase 3 (flash map):** `memmap_picosystem.ld` declares `FLASH` = 12 MiB at `0x10000000` and a `FAT` region of 4 MiB ("Reserved for FAT"; its origin line reads `0x10003000`, which looks like a typo upstream because it overlaps `FLASH`). PLAN.md section 5 places saves at `0xE00000` to `0x1000000`, inside that top 4 MiB. Needs a decision before Phase 3: use the full 16 MiB (overwrites anything the stock firmware keeps there), or keep to the first 12 MiB. Not decided; the PicoSystem bootloader behaviour is still a [VERIFY].
+
+### 2026-11-25 — Phase 2: pacing solved by emulating in update() (measured on hardware)
+
+Serves Phase 2 / PLAN.md section 6 ("average >= 59.5 fps"). Measured on the author's PicoSystem, SDK defaults (250 MHz overclock), no audio, `cpu_instrs` ROM only (not a game scene).
+
+Sequence of findings, all from USB serial output:
+1. Emulating once per `draw()` (Phase 1): game ran at 39.7 fps (67% speed) because the panel is 40 Hz.
+2. Time-based pacer with catch-up cap 3, emulating in `draw()`: game speed correct (59.62) but the screen updated only about 20 times a second. Cause: the screen transfer takes about 12.2 ms of the 25.2 ms refresh and `draw()` waits for it, leaving about 13 ms; a refresh needing 3 frames (about 22 ms) missed vsync, then owed 3 again and stayed locked there. (One printout in this round had mislabelled columns because my format string did not match its arguments; corrected afterwards.)
+3. Cap lowered to 2, still emulating in `draw()`: still 20 Hz, game back to 39.7 fps, for the same reason (2 frames, about 16 ms, do not fit in about 13 ms).
+4. **Fix in use:** emulate in `update()` (which the SDK calls while the previous transfer is still running in the background) into a private 160x144 off-screen buffer; `draw()` only copies it into the SDK framebuffer. Cap stays at 2 (`PB_PACER_MAX_CATCH_UP`).
+
+**Result (two consecutive 600-refresh windows):** `gb_fps` 59.77 and 59.72 (Game Boy: 59.73); `screen_hz` 39.71 and 39.73 (the panel's 40 Hz); emulation per Game Boy frame min 6,077 us, avg about 8,320 us, max 9,850 us (frames that are not rendered cost about 6.1 ms, rendered ones about 9.5 to 10 ms); `update()` max 15,532 us of a 25,200 us period, so about 9.7 ms headroom in this scene. Period max about 25,208 us, no missed vsync.
+
+- RAM cost: +23,040 B (the off-screen buffer). Free main RAM is now 53,360 B (52.1 KiB). Updated in `docs/MEMORY_BUDGET.md`.
+- A stats bug (average computed over 599 instead of 600 samples) was fixed with a sample counter.
+- **Not yet shown:** a real game scene. `cpu_instrs` is a CPU test; a PPU-heavy or bank-switching scene could cost more per frame. With two frames per refresh, a scene where one rendered frame costs more than about 17 ms (plus about 8 ms for the other) would miss vsync again. Needs real game scenes (Phase 2 acceptance wants three) before we call performance solved.
+- Not done, not needed so far: reprogramming the panel to 60 Hz, using core 1, hot code in RAM. These stay as options if game scenes turn out heavier.

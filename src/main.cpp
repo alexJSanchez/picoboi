@@ -39,11 +39,14 @@ constexpr uint32_t BENCH_UPDATES = 600;
 struct Stat {
   uint32_t min = 0xFFFFFFFF, max = 0;
   uint64_t sum = 0;
+  uint32_t n = 0;
   void add(uint32_t v) {
     if (v < min) min = v;
     if (v > max) max = v;
     sum += v;
+    n++;
   }
+  uint32_t avg() const { return n ? (uint32_t)(sum / n) : 0; }
   void reset() { *this = Stat(); }
 };
 Stat g_emu_us;     // time to emulate one Game Boy frame
@@ -120,11 +123,11 @@ void update(uint32_t) {
            (unsigned)(fps_x100 % 100), (unsigned)(refresh_x100 / 100),
            (unsigned)(refresh_x100 % 100));
     printf("  emu_us    min=%u avg=%u max=%u\n", (unsigned)g_emu_us.min,
-           (unsigned)(g_emulated ? g_emu_us.sum / g_emulated : 0), (unsigned)g_emu_us.max);
+           (unsigned)g_emu_us.avg(), (unsigned)g_emu_us.max);
     printf("  update_us avg=%u max=%u | flip_us avg=%u max=%u | period_us avg=%u max=%u\n",
-           (unsigned)(g_update_us.sum / g_updates), (unsigned)g_update_us.max,
-           (unsigned)(g_flip_us.sum / g_updates), (unsigned)g_flip_us.max,
-           (unsigned)(g_period_us.sum / (g_updates - 1)), (unsigned)g_period_us.max);
+           (unsigned)g_update_us.avg(), (unsigned)g_update_us.max,
+           (unsigned)g_flip_us.avg(), (unsigned)g_flip_us.max,
+           (unsigned)g_period_us.avg(), (unsigned)g_period_us.max);
     g_emu_us.reset();
     g_update_us.reset();
     g_period_us.reset();
