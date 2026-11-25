@@ -2,7 +2,7 @@
 
 Numbers come from the linker output of a real build, not estimates. Replace them whenever the build changes (CLAUDE.md "definition of done").
 
-Build measured: commit `4517dad` plus the stats fix that follows it (emulator core + embedded 64 KiB test ROM + off-screen frame buffer, SDK defaults, 240x240, 250 MHz, Release `-O3`, no audio), pico-sdk 2.3.1, picosystem `9a26b2a`, Arm GNU 14.2.Rel1.
+Build measured: commit `810b122` (emulator core with audio, speaker driver, embedded ROM, off-screen frame buffer, emulator code running from RAM, SDK defaults, 240x240, 250 MHz, Release `-O3`), pico-sdk 2.3.1, picosystem `9a26b2a`, Arm GNU 14.2.Rel1.
 
 How to reproduce:
 ```sh
@@ -20,14 +20,15 @@ The picosystem linker script (`third_party/picosystem/libraries/memmap_picosyste
 | Cart RAM buffer `g_cart_ram` (sized for Pokemon, 32 KiB) | 32,768 | 32.0 |
 | Emulator state `g_core` (`pb_core_t`, holds `struct gb_s` = 16,916 B) | 20,480 | 20.0 |
 | Off-screen Game Boy frame `g_shade` (160x144, 1 byte per pixel) | 23,040 | 22.5 |
-| Other `.bss` (USB, SDK tables, etc.) | 5,188 | 5.1 |
-| **`.bss` total** | **196,676** | **192.1** |
-| `.data` (initialised data, copied from flash at boot) | 9,868 | 9.6 |
+| Audio ring buffer `g_ring` (2,048 x 16-bit PWM levels) | 4,096 | 4.0 |
+| Other `.bss` (USB, SDK tables, etc.) | 5,096 | 5.0 |
+| **`.bss` total** | **200,920** | **196.2** |
+| `.data` (initialised data copied from flash at boot, **includes the emulator and audio code, 22 KB, running from RAM**) | 32,028 | 31.3 |
 | `.ram_vector_table` | 192 | 0.2 |
 | `.heap` (reserved by the linker script) | 2,048 | 2.0 |
-| **Used in main RAM** | **208,784** | **203.9** |
+| **Used in main RAM** | **235,188** | **229.7** |
 | Main RAM capacity | 262,144 | 256.0 |
-| **Free in main RAM** | **53,360** | **52.1** |
+| **Free in main RAM** | **26,956** | **26.3** |
 | Core 0 stack (in SCRATCH_Y, separate from main RAM) | 2,048 | 2.0 |
 | SCRATCH_X free / SCRATCH_Y remaining | 4,096 / 2,048 | 4.0 / 2.0 |
 

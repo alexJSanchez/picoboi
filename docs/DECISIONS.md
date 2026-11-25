@@ -174,3 +174,22 @@ Serial readout after the DMA channel fix, test-tone build (`cpu_instrs` screen, 
 - **Sync logic on real clocks:** one underrun and one overrun, both at start-up only (the count did not grow afterwards): the first audio frame arrives later than the 1000-sample prefill lasts. About 11 one-sample nudges (`dups`) in the first 25 s after the reference was learned, consistent with a small clock mismatch. Fill stays between about 1,200 and 1,500 when sampled right after a push.
 - RAM: the 4 KB ring buffer is in `.bss` (`g_ring` at 0x20003000).
 - **Still open:** how it sounds. Quality of PWM-through-piezo, the mix level (`g_gain`, full scale +-16384 maps to +-50% duty), and whether the carrier whine is audible have to be judged by ear. Then the game's APU audio and its CPU cost.
+
+### 2026-11-25 — Phase 2: speed investigation with audio on, and the budgeted scheduler (measured on hardware)
+
+Serves Phase 2 / PLAN.md section 6. Pokemon Red (author's own ROM, never committed) with game audio on, SDK defaults (250 MHz, 40 Hz panel).
+
+**Problem.** In a busy scene the game and the music ran at about two thirds speed and the screen dropped to about 20 updates per second: `gb_fps` 39.7, `screen_hz` 19.9, `emu_us` avg 13.4 ms / max 17.8 ms, `update_us` avg 26.7 ms over the 25.2 ms refresh, audio underruns growing by about 40 every 3 s. Cause: two frames in one refresh cost more than the refresh; the SDK loop then misses vsync (period doubles to about 50 ms), the pacer owes more frames, and the system stays locked in that state.
+
+**Where the time goes (boot benchmark: first 1,800 frames of the ROM with no input, three passes, microseconds per frame).** Drawing + audio (A) 5.7 to 10.0 ms avg; audio only (B) 1.7 to 5.1; neither (C, pure CPU emulation) 1.5 to 4.1. So the picture costs about 4.1 to 5.7 ms per frame, audio 0.04 to 1.2 ms (`apu_us` about 0.9 to 1.1 ms when music plays), CPU emulation the rest. Worst single frames reach 19 ms with drawing. The slow scene the author reported cost more than any of these 1,800 boot frames (min 9.2 ms without drawing).
+
+**Things tried, with measured effect:**
+- Emulator + audio code run from RAM (own copy of the linker script, `ld/picoboy_memmap.ld`): `emu_us` avg 13.37 to 13.00 ms, about 3%. Costs 22 KB of RAM (free RAM now 26.3 KiB). Kept for now; revisit if RAM is needed.
+- `PEANUT_GB_HIGH_LCD_ACCURACY` 0 instead of 1: about 0.15 ms per frame (1.5%). Not worth the accuracy loss; left at 1 (CMake option `PB_HIGH_LCD_ACCURACY`).
+- Catch-up cap 2 or 3 alone: does not help; the lock-in persists.
+
+**Fix that worked: budgeted scheduler** (`pb_pacer_plan` in `core/pb_pacer.c`, host-tested with simulated light/heavy/extreme scenes). Each refresh it estimates the cost of a frame with and without drawing (running peak with slow decay, measured on the device) and picks: all due frames with the last drawn if that fits 23,000 us; else all due frames without drawing (game speed and audio stay right, the picture repeats); else as many as fit, dropping the rest. Emulation also moved into `update()` so it overlaps the 12 ms screen transfer (earlier finding). The line copy into the off-screen buffer now moves four pixels at a time (with an alignment fallback; the Cortex-M0+ faults on unaligned word access).
+
+**Result on hardware, stable (two consecutive 600-refresh windows, the author's scene):** `gb_fps` 59.77, `screen_hz` 39.71, picture drawn on 600 of 600 refreshes, 0 frames dropped, `update_us` avg 9.4 ms and max 13.0 ms, `emu_us` avg 6.3 ms, `apu_us` avg 0.91 ms, audio underruns constant at 52 (not growing), overruns 24 (not growing). The author reports it works much better and calls it stable.
+
+**Caveats.** (1) In this scene the estimated costs were low (no-draw 4.3 ms, draw 7.5 to 8.3 ms), lighter than the scene measured before the fix (9.2 and about 17 ms), so the "heavy scene, draw about every other refresh" path of the scheduler was validated by simulation but not yet seen on hardware. (2) The boot benchmark is not representative of busy gameplay scenes; a recorded-input replay would make busy scenes repeatable. (3) The mute combo (X+Y+B) is untested on hardware.
