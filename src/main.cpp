@@ -340,7 +340,13 @@ void update(uint32_t) {
     case Mode::SavePrompt: {
       const uint8_t b = ui_buttons_pressed();
       if (b & UI_A) {
-        saves_claim();
+        char msg[48];
+        if (saves_claim()) {
+          snprintf(msg, sizeof(msg), "Saves are enabled.");
+        } else {
+          snprintf(msg, sizeof(msg), "Saves unavailable (error %d).", saves_last_error());
+        }
+        launcher_set_message(msg);
         g_mode = Mode::Launcher;
       } else if (b & UI_B) {
         saves_decline();

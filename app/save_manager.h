@@ -29,6 +29,8 @@ SaveState saves_state();
 
 // After the player agreed: erase the claim sector and start using the region.
 bool saves_claim();
+// Status of the last failed attempt to claim or format (a pb_save_status_t), for on-screen messages.
+int saves_last_error();
 void saves_decline();
 
 // Fills `ram` (ram_size bytes) with the game's saved data, or zeros if there is none. Call before

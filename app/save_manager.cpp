@@ -15,6 +15,7 @@ namespace {
 
 pb_save_store_t g_store;
 SaveState g_state = SaveState::Unavailable;
+int g_last_error = 0;
 pb_savepol_t g_pol;
 
 bool g_in_game = false;
@@ -89,15 +90,19 @@ SaveState saves_state() { return g_state; }
 bool saves_claim() {
   if (g_state != SaveState::NeedsConfirm) return g_state == SaveState::Ready;
   const pb_flash_ops_t ops = flash_ops_device();
-  if (pb_save_format(&g_store, &ops, new_store_id()) == PB_SAVE_OK) {
+  const pb_save_status_t fst = pb_save_format(&g_store, &ops, new_store_id());
+  if (fst == PB_SAVE_OK) {
     g_state = SaveState::Ready;
     printf("saves: claimed the region (the player agreed to erase the old data)\n");
     return true;
   }
+  g_last_error = (int)fst;
   g_state = SaveState::Unavailable;
   printf("saves: claiming the region failed\n");
   return false;
 }
+
+int saves_last_error() { return g_last_error; }
 
 void saves_decline() {
   if (g_state == SaveState::NeedsConfirm) {
