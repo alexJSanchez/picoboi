@@ -75,3 +75,9 @@ add_executable(test_launcher_model test_launcher_model.c ${ROOT}/launcher/launch
 target_include_directories(test_launcher_model PRIVATE ${ROOT}/launcher ${ROOT}/storage)
 target_compile_options(test_launcher_model PRIVATE -Wall -Wextra)
 add_test(NAME launcher_model COMMAND test_launcher_model)
+
+# Save store: power-loss safe saves against a simulated flash (cuts the power at every operation).
+add_executable(test_save_store test_save_store.c ${ROOT}/storage/save_store.c ${ROOT}/storage/crc32.c)
+target_include_directories(test_save_store PRIVATE ${ROOT}/storage)
+target_compile_options(test_save_store PRIVATE -Wall -Wextra)
+add_test(NAME save_store COMMAND test_save_store)

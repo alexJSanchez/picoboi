@@ -71,6 +71,17 @@ python tools/pack_library.py pokemon_red.gb homebrew.gb -o library.uf2
 
 Hold X while powering on, then copy `library.uf2` onto the RPI-RP2 drive. The UF2 covers only the index sector and the ROM area, whole sectors, in ascending order. **Do not share a UF2 that contains ROMs** (CLAUDE.md). [VERIFY on hardware that it leaves the firmware and the saves alone.]
 
+## Save store format, version 1
+
+Implemented in `storage/save_store.c` (pure logic, host-tested against a simulated flash). It lives in the settings and save regions, the only area the firmware ever erases or programs.
+
+- **Claim sector** at `0xA00000` (first settings sector): 16 bytes, `"PBSV"`, version u16, reserved u16, `store_id` u32, CRC-32 of the first 12 bytes. It marks the region as ours. A blank sector means never used (may be claimed without asking); anything else that is not a valid claim is foreign (ask the user first). Claiming erases only this one sector; leftovers elsewhere in the region cannot be mistaken for saves because every copy header carries the `store_id`.
+- **Copies** in the save slots region (`0xA02000`, 510 sectors): a copy is one header sector followed by the payload in whole sectors. Header (32 bytes at the start of its sector): `"PBSC"`, version u16, `n_sectors` u16 (header included), `store_id` u32, `key` u32 (the ROM's CRC-32), `seq` u32, `payload_len` u32, `payload_crc32` u32, CRC-32 of the first 28 bytes.
+- **Two copies per game.** A save rewrites the older one (or allocates a free run for the first and second save): erase the whole copy, program the payload (cart RAM) from RAM, program the header page **last**. The header is the commit: until it is complete the copy is invalid and the other copy (the previous save) is untouched, so a power cut at any point leaves either the old or the new save, never garbage. A copy whose payload CRC does not match is skipped and the older one is used.
+- **Sequence numbers** wrap around (compared as signed 32-bit differences); the new copy gets the newest sequence plus one.
+- **Capacity:** a 32 KiB Pokemon save is 9 sectors (36 KiB) per copy, 72 KiB for both, so about 28 games with both copies; the table holds up to 64 copies.
+- **Cost of a save:** erasing a copy takes about 45 ms per sector on typical flash, so a 32 KiB save stalls the emulator for roughly half a second. [VERIFY on hardware.]
+
 ## What is not decided or verified yet
 
 - Whether the UF2 trick (the bootloader only writes the blocks present in the UF2) really leaves the firmware and saves alone on this device. [VERIFY on hardware with a throwaway file before trusting it with a real save.] (PLAN.md backlog item 13.)
