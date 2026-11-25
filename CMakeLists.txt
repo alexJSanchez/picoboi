@@ -23,3 +23,7 @@ picosystem_executable(picoboy
 
 # Phase 0: keep the SDK defaults (240x240, overclock on). Revisit in Phase 2.
 disable_startup_logo(picoboy)
+
+# USB serial logging (PLAN.md [VERIFY] #7). No UART pins are exposed on the PicoSystem.
+pico_enable_stdio_usb(picoboy 1)
+pico_enable_stdio_uart(picoboy 0)
