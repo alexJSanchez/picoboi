@@ -8,6 +8,15 @@ Turn it on, pick a game from a list, play it with sound, and your in-game saves 
 
 This repository contains **no games and no Nintendo software**. You bring ROM files from cartridges you own.
 
+### What it looks like
+
+These are two free test programs run through the emulator code of this project, with the PicoSystem's colours (not photographs of the device): **dmg-acid2** (left) draws a face when the picture hardware is emulated correctly, and **Blargg's `cpu_instrs`** (right) reports that all 11 groups of CPU instruction tests pass.
+
+<p>
+<img src="docs/images/dmg-acid2.png" alt="dmg-acid2 test: a smiling face with the title HELLO WORLD" width="300">
+<img src="docs/images/cpu_instrs.png" alt="cpu_instrs test results: 11 of 11 ok, Passed all tests" width="300">
+</p>
+
 ---
 
 ## What it does
@@ -173,6 +182,7 @@ Learned the hard way, and written down in [docs/DECISIONS.md](docs/DECISIONS.md)
 - An in-game menu (volume, scaling, palettes) — the X+Y shortcuts are the temporary stand-in.
 - Link cable, save states, installing games from the device itself.
 - The emulator draws one line at a time, so a game that changes the picture in the middle of a frame can look wrong. Compatibility has only been checked on a few games.
+- Compatibility has been checked on very few games: see [docs/COMPAT.md](docs/COMPAT.md) for exactly what was and wasn't tried.
 - Saving was tested on one device. A cut-the-power-at-random-moments test on real flash hasn't been done.
 
 The plan and the order things were built in are in [docs/PLAN.md](docs/PLAN.md).
@@ -200,4 +210,4 @@ PicoBoy is an emulator. It contains no game code, no console boot ROM, and no Ni
 
 ## Credits
 
-[Peanut-GB](https://github.com/deltabeard/Peanut-GB) and `minigb_apu` by Mahyar Koshkouei (MIT, `minigb_apu` based on MiniGBS by Alex Baines), the [Pico SDK](https://github.com/raspberrypi/pico-sdk) by Raspberry Pi, and the [PicoSystem SDK](https://github.com/pimoroni/picosystem) by Pimoroni. Test ROMs: Blargg's `cpu_instrs` and Matt Currie's `dmg-acid2`, downloaded by script and never committed.
+[Peanut-GB](https://github.com/deltabeard/Peanut-GB) and `minigb_apu` by Mahyar Koshkouei (MIT, `minigb_apu` based on MiniGBS by Alex Baines), the [Pico SDK](https://github.com/raspberrypi/pico-sdk) by Raspberry Pi, and the [PicoSystem SDK](https://github.com/pimoroni/picosystem) by Pimoroni. Test ROMs: Blargg's `cpu_instrs` and Matt Currie's `dmg-acid2` (MIT), downloaded by script and never committed; the two screenshots above are their output.
