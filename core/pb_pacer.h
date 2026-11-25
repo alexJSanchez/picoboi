@@ -50,6 +50,21 @@ typedef struct {
 pb_plan_t pb_pacer_plan(pb_pacer_t *p, uint32_t now_us, uint32_t cost_norender_us,
                         uint32_t cost_render_us, uint32_t budget_us);
 
+// Running cost estimates (microseconds per frame). An estimate jumps to a slower sample at once and
+// decays by 1/32 per update, so a heavier scene is respected before it is measured again.
+static inline uint32_t pb_cost_track(uint32_t est, uint32_t sample) {
+  return sample > est ? sample : est - est / 32;
+}
+// The cost of a DRAWN frame is only measured when a frame is drawn. If one slow sample pushed the
+// estimate above the budget, no frame would be drawn again and it would never be re-measured (the
+// game runs on, the picture freezes). So whenever frames were emulated but none drawn, the estimate
+// relaxes by the same 1/32, never below `floor_us` (a drawn frame costs at least an undrawn one);
+// the planner then tries drawing again and measures the real cost.
+static inline uint32_t pb_cost_relax(uint32_t est, uint32_t floor_us) {
+  const uint32_t lower = est - est / 32;
+  return lower > floor_us ? lower : (est > floor_us ? floor_us : est);
+}
+
 #ifdef __cplusplus
 }
 #endif

@@ -28,8 +28,69 @@ static uint32_t simulate(uint32_t period_us, uint32_t refreshes, uint32_t start_
   return total;
 }
 
+// Regression: ONE very slow drawn frame must not freeze the picture for ever. (Seen as "the game
+// goes on and the music plays but the screen stays on the title picture".) Mirrors the loop in
+// src/main.cpp: plan, emulate, track the cost of what ran, relax the draw estimate when nothing
+// was drawn.
+static void test_slow_frame_does_not_freeze_picture(void) {
+  pb_pacer_t p;
+  pb_pacer_init(&p);
+  uint32_t nr = 10000, r = 17000, now = 0, drawn = 0, drawn_after = 0, first_redraw = 0;
+  for (uint32_t u = 0; u < 4000; u++) {
+    now += 25200;
+    const pb_plan_t pl = pb_pacer_plan(&p, now, nr, r, 23000);
+    for (uint32_t i = 0; i < pl.frames; i++) {
+      const bool render = pl.render && i == pl.frames - 1;
+      uint32_t cost = render ? 4500 : 2500;  // a light scene
+      if (render && u == 50) cost = 30000;   // one slow drawn frame (a cold cache, say)
+      if (render) r = pb_cost_track(r, cost); else nr = pb_cost_track(nr, cost);
+    }
+    if (pl.frames && !pl.render) r = pb_cost_relax(r, nr);
+    if (pl.frames && pl.render) {
+      drawn++;
+      if (u > 50) {
+        drawn_after++;
+        if (!first_redraw) first_redraw = u;
+      }
+    }
+  }
+  CHECK(drawn_after > 3000);                      // drawing resumes and stays on
+  CHECK(first_redraw > 50 && first_redraw < 90);  // within a second or so (40 refreshes)
+  CHECK(r < 10000);                               // and the estimate came back down
+
+  // A scene that really is that slow keeps being drawn only now and then, never never.
+  pb_pacer_init(&p);
+  nr = 10000; r = 17000; now = 0; drawn = 0;
+  for (uint32_t u = 0; u < 2000; u++) {
+    now += 25200;
+    const pb_plan_t pl = pb_pacer_plan(&p, now, nr, r, 23000);
+    for (uint32_t i = 0; i < pl.frames; i++) {
+      const bool render = pl.render && i == pl.frames - 1;
+      const uint32_t cost = render ? 24000 : 6000;
+      if (render) r = pb_cost_track(r, cost); else nr = pb_cost_track(nr, cost);
+    }
+    if (pl.frames && !pl.render) r = pb_cost_relax(r, nr);
+    if (pl.frames && pl.render) drawn++;
+  }
+  CHECK(drawn > 20);       // probes: the picture still updates now and then
+  CHECK(drawn < 1000);     // but a genuinely over-budget scene is not drawn every time
+}
+
+// pb_cost_relax: decays, never below the floor, never raises a value already below it.
+static void test_cost_relax(void) {
+  CHECK(pb_cost_relax(32000, 5000) == 32000 - 1000);
+  CHECK(pb_cost_relax(5100, 5000) == 5000);
+  CHECK(pb_cost_relax(5000, 5000) == 5000);
+  CHECK(pb_cost_relax(4000, 5000) == 4000);
+  uint32_t e = 30000;
+  for (int i = 0; i < 500; i++) e = pb_cost_relax(e, 4000);
+  CHECK(e == 4000);
+}
+
 int main(void) {
   uint32_t mx;
+  test_slow_frame_does_not_freeze_picture();
+  test_cost_relax();
 
   // 40 Hz panel (measured 25,160 us): about 1.503 frames per refresh -> 1,2,1,2...
   // Expected: first frame + elapsed time / frame period.

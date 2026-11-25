@@ -85,9 +85,7 @@ constexpr uint32_t UPDATE_BUDGET_US = 23000;
 // peak and decay slowly, so a sudden heavier scene is respected before it is measured again.
 uint32_t g_cost_norender_us = 10000;
 uint32_t g_cost_render_us = 17000;
-inline void track_cost(uint32_t &est, uint32_t sample) {
-  est = sample > est ? sample : est - est / 32;
-}
+inline void track_cost(uint32_t &est, uint32_t sample) { est = pb_cost_track(est, sample); }
 uint32_t g_window_start_us = 0;
 uint32_t g_last_start_us = 0;
 
@@ -264,6 +262,9 @@ void update_game() {
     g_emu_us.add(dt);
     track_cost(render ? g_cost_render_us : g_cost_norender_us, dt);
   }
+  // Frames ran but none was drawn: let the draw-cost estimate relax, or one slow drawn frame could
+  // keep it above the budget for ever and freeze the picture while the game goes on.
+  if (plan.frames && !plan.render) g_cost_render_us = pb_cost_relax(g_cost_render_us, g_cost_norender_us);
   g_emulated += plan.frames;
   g_dropped += plan.dropped;
   if (plan.frames && plan.render) g_drawn_updates++;
