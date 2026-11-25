@@ -42,3 +42,9 @@ add_executable(test_audio test_audio.c ${CORE_SOURCES})
 target_include_directories(test_audio PRIVATE ${ROOT}/core ${ROOT}/third_party/peanut_gb ${APU_DIR})
 target_compile_options(test_audio PRIVATE -Wall -Wextra)
 add_test(NAME audio_tone COMMAND test_audio)
+
+# Audio producer/consumer synchronisation (pure logic).
+add_executable(test_audio_sync test_audio_sync.c ${ROOT}/core/pb_audio_sync.c)
+target_include_directories(test_audio_sync PRIVATE ${ROOT}/core)
+target_compile_options(test_audio_sync PRIVATE -Wall -Wextra)
+add_test(NAME audio_sync COMMAND test_audio_sync)
