@@ -137,6 +137,27 @@ audio_stats_t audio_get_stats() {
   return st;
 }
 
+void audio_print_diag() {
+  if (!g_ready) return;
+  static uint32_t last_us = 0, last_consumed = 0;
+  const uint32_t now_us = time_us_32();
+  const uint32_t now_consumed = consumed();
+  uint32_t rate = 0;
+  if (last_us) rate = (uint32_t)(((uint64_t)(now_consumed - last_consumed) * 1000000u) / (now_us - last_us));
+  last_us = now_us;
+  last_consumed = now_consumed;
+
+  const audio_stats_t st = audio_get_stats();
+  const uint32_t div = pwm_hw->slice[g_slice].div;
+  printf("audio diag: pwm top=%u (expected %u) div=%u.%u en=%d | dma playback=%u Hz (expected 32730) "
+         "busy=%d | cc=0x%08x | fill=%d under=%u over=%u drops=%u dups=%u | %s\n",
+         (unsigned)pwm_hw->slice[g_slice].top, (unsigned)g_wrap, (unsigned)(div >> 4),
+         (unsigned)(div & 0xF), (int)((pwm_hw->slice[g_slice].csr & 1u) != 0), (unsigned)rate,
+         (int)dma_channel_is_busy(g_dma), (unsigned)pwm_hw->slice[g_slice].cc, (int)st.fill,
+         (unsigned)st.underruns, (unsigned)st.overruns, (unsigned)st.drops, (unsigned)st.dups,
+         g_enabled ? "on" : "muted");
+}
+
 #ifdef PB_AUDIO_TEST_TONE
 // Square wave, changes pitch every 90 frames (1.5 s): 220, 440, 880, 1760, 3520, 5000 Hz,
 // then silence for one step. The pitch is printed when it changes.

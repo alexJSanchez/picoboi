@@ -27,6 +27,11 @@ typedef struct {
 } audio_stats_t;
 audio_stats_t audio_get_stats();
 
+// Prints one diagnostic line over USB serial: the PWM registers as read back from the
+// hardware, the measured playback rate of the DMA, and the buffer state. Intended to be
+// called every few seconds while bringing up the speaker.
+void audio_print_diag();
+
 #ifdef PB_AUDIO_TEST_TONE
 // Queues one frame of a built-in test tone (cycles through several pitches).
 void audio_push_test_tone();

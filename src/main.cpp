@@ -128,6 +128,7 @@ void update(uint32_t) {
   g_emulated += due;
   g_update_us.add(time_us() - start);
   g_flip_us.add(stats.flip_us);
+  if (g_updates % 80 == 40) audio_print_diag();  // about every 3 s
 
   if (++g_updates == BENCH_UPDATES) {
     const uint32_t elapsed_us = time_us() - g_window_start_us;
