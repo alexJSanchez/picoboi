@@ -226,3 +226,11 @@ Serves backlog item 13 (test the UF2 flashing approach on hardware with a throwa
 - This is the **first flash write by our code**. It goes through `pb_flash_erase_allowed()` / `pb_flash_program_allowed()` and `flash_safe_execute()`. [VERIFY #3 partly resolved: `flash_safe_execute()` exists in pico-sdk 2.3.1.] We never start the second core, so the build defines `PICO_FLASH_ASSUME_CORE1_SAFE=1` (the SDK's documented switch for that case); otherwise `flash_safe_execute` would refuse to run because it cannot know what core 1 is doing. If a later feature starts core 1, this assumption must be revisited.
 - The test library (`build-flashtest/flashtest_library.uf2`, 1,680 blocks, offsets `0x100000` to `0x169000`) is made from the synthetic ROMs only.
 - Expected stale data: the earlier firmware builds embed a 1 MiB ROM that physically extends past `0x100000` (the library area), so before the library is flashed the index sector will hold old bytes, not erased flash.
+
+### 2026-11-25 — Phase 3: stage A of the flash test found existing data in the settings and save regions
+
+- On the author's device, the settings page at `0xA00000` and the first save-area sector at `0xA02000` are **not blank** (unknown data; first-sector CRC 52cc78b2). The test firmware did what it is built to do and refused to overwrite them.
+- This contradicts the assumption in `docs/FLASH_LAYOUT.md` that nothing below `0xC00000` is in use apart from our own data. It is leftover data from earlier use of the device (not from this project).
+- **Rule going forward:** firmware must never erase or program a page in the settings or save regions that holds data it did not write itself, without an explicit confirmation from the author. Phase 4 (saves) must therefore include a first-use step that asks before claiming those regions (or a dedicated "prepare saves" action), not silently erase them.
+- This does not affect the library: the index and ROM area (`0x100000` and up) are only written by the PC tool's UF2, and earlier test builds that embedded a ROM already wrote over part of it.
+- Next in Phase 3: stage B of the hardware test (flash the synthetic library UF2 and verify the firmware CRC and ROM data), then the launcher.
