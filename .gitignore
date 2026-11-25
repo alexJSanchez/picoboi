@@ -27,3 +27,6 @@ build-*/
 
 # Synthetic golden files for the tests (our own bytes, no ROM data)
 !tests/golden/*.bin
+
+# Local ROM folders: never commit game files
+roms/
