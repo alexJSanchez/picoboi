@@ -1,4 +1,9 @@
-// Run an embedded free test ROM through core/ and show it on screen.
+// PicoBoy application glue: SDK entry points (init/update/draw), the mode switch between the
+// game list (launcher) and a running game, and the performance statistics.
+//
+// Boot: the launcher lists the games found in the flash library (tools/pack_library.py);
+// A starts the selected game, holding X+Y for a second returns to the list. A build made with
+// -DPB_EMBED_ROM=<file> skips the list and runs that ROM directly (development and benchmarks).
 //
 // SDK loop per refresh: update(); wait for the previous framebuffer transfer; draw();
 // wait for vsync; start the next transfer. The transfer takes about 12 ms of the 25 ms
@@ -8,6 +13,7 @@
 // The Game Boy runs at 59.73 Hz, so emulation is paced by time (pb_pacer): each refresh
 // runs however many frames are due (1, 2, 1, 2... at 40 Hz); only the last is rendered.
 #include <stdio.h>
+#include <string.h>
 
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
@@ -19,6 +25,7 @@
 #include "audio.h"
 #include "display.h"
 #include "input.h"
+#include "launcher.h"
 #include "pb_core.h"
 #include "pb_pacer.h"
 
@@ -31,11 +38,16 @@ extern "C" const uint8_t pb_embedded_rom_end[];
 
 namespace {
 
+enum class Mode { Launcher, Game, Error };
+Mode g_mode = Mode::Error;
+bool g_from_launcher = false;      // false: a build with an embedded ROM that runs it directly
+bool g_clear_on_next_draw = false;  // wipe the screen before the first game picture
+
 pb_core_t g_core;
 pb_pacer_t g_pacer;
-uint8_t g_cart_ram[32 * 1024];  // sized for Pokemon Red/Blue/Yellow (PLAN.md section 4)
+constexpr uint32_t MAX_CART_RAM = 32 * 1024;  // sized for Pokemon Red/Blue/Yellow (PLAN.md section 4)
+uint8_t g_cart_ram[MAX_CART_RAM];
 
-bool g_running = false;
 const char *g_error = nullptr;
 uint32_t g_error_count = 0;
 
@@ -60,7 +72,7 @@ Stat g_period_us;  // time between display refreshes
 Stat g_flip_us;    // SDK: time from flip start until the transfer finished
 Stat g_blit_us;    // draw(): copying/scaling the off-screen frame into the framebuffer
 uint32_t g_updates = 0;
-uint32_t g_emulated = 0;      // Game Boy frames emulated in this window
+uint32_t g_emulated = 0;       // Game Boy frames emulated in this window
 uint32_t g_drawn_updates = 0;  // refreshes in this window in which a new picture was drawn
 uint32_t g_dropped = 0;        // frames skipped because they did not fit the time budget
 
@@ -77,22 +89,30 @@ inline void track_cost(uint32_t &est, uint32_t sample) {
 uint32_t g_window_start_us = 0;
 uint32_t g_last_start_us = 0;
 
+void reset_stats() {
+  g_emu_us.reset();
+  g_update_us.reset();
+  g_period_us.reset();
+  g_flip_us.reset();
+  g_blit_us.reset();
+  g_updates = g_emulated = g_drawn_updates = g_dropped = 0;
+  g_window_start_us = g_last_start_us = 0;
+  g_cost_norender_us = 10000;
+  g_cost_render_us = 17000;
+}
+
 void on_core_audio(void *, const int16_t *mono, uint32_t count) { audio_push(mono, count); }
 
 void on_core_error(void *, int code, uint16_t addr) {
   if (g_error_count++ < 5) printf("core error %d at 0x%04x\n", code, addr);
 }
 
-}  // namespace
-
-namespace {
-#ifdef PB_HAVE_EMBEDDED_ROM
-pb_core_config_t make_core_config() {
+pb_core_config_t make_core_config(const uint8_t *rom, uint32_t rom_size, uint32_t cart_ram_size) {
   pb_core_config_t cfg = {};
-  cfg.rom = pb_embedded_rom;
-  cfg.rom_size = (uint32_t)(pb_embedded_rom_end - pb_embedded_rom);
-  cfg.cart_ram = g_cart_ram;
-  cfg.cart_ram_size = sizeof(g_cart_ram);
+  cfg.rom = rom;
+  cfg.rom_size = rom_size;
+  cfg.cart_ram = cart_ram_size ? g_cart_ram : nullptr;
+  cfg.cart_ram_size = cart_ram_size;
   cfg.draw_line = display_draw_line;
   cfg.on_error = on_core_error;
   cfg.clock_us = time_us_32;
@@ -101,9 +121,34 @@ pb_core_config_t make_core_config() {
 #endif
   return cfg;
 }
-#endif
+
+// Starts a game: fresh save RAM (saving to flash comes in Phase 4), fresh pacing and
+// statistics, silent speaker. The ROM is read in place (XIP), never copied.
+pb_status_t start_game(const uint8_t *rom, uint32_t rom_size, uint32_t cart_ram_size) {
+  if (cart_ram_size > MAX_CART_RAM) return PB_ERR_CART_RAM_TOO_SMALL;
+  memset(g_cart_ram, 0, sizeof(g_cart_ram));
+  pb_core_config_t cfg = make_core_config(rom, rom_size, cart_ram_size);
+  const pb_status_t st = pb_core_init(&g_core, &cfg);
+  if (st != PB_OK) return st;
+  pb_pacer_init(&g_pacer);
+  reset_stats();
+  audio_reset();
+  g_clear_on_next_draw = true;
+  g_mode = Mode::Game;
+  printf("game started: ROM %u bytes at %p, cart RAM %u bytes\n", (unsigned)rom_size, (const void *)rom,
+         (unsigned)cart_ram_size);
+  return PB_OK;
+}
+
+void back_to_launcher() {
+  audio_reset();  // stop the speaker repeating the last buffered sound
+  launcher_init(MAX_CART_RAM);
+  g_mode = Mode::Launcher;
+  printf("back to the game list\n");
+}
 
 #ifdef PB_BOOT_BENCH
+#ifdef PB_HAVE_EMBEDDED_ROM
 void bench_discard_audio(void *, const int16_t *, uint32_t) {}
 
 // Runs the first frames of the ROM with no input (deterministic, so variants of the firmware
@@ -121,7 +166,8 @@ void run_boot_bench() {
          BENCH_SEG);
   for (int pass = 0; pass < 3; pass++) {
     const bool render = pass == 0;
-    pb_core_config_t cfg = make_core_config();
+    pb_core_config_t cfg = make_core_config(pb_embedded_rom, (uint32_t)(pb_embedded_rom_end - pb_embedded_rom),
+                                            sizeof(g_cart_ram));
     cfg.on_audio = pass < 2 ? bench_discard_audio : nullptr;
     if (pb_core_init(&g_core, &cfg) != PB_OK) {
       printf("bootbench: init failed\n");
@@ -149,52 +195,49 @@ void run_boot_bench() {
   printf("bootbench: done\n");
 }
 #endif
-}  // namespace
+#endif
 
-void init() {
-  stdio_init_all();
-#ifdef PB_FLASH_TEST
-  flash_test_init();  // test mode: inspect the flash instead of running the emulator
-  return;
-#endif
-  printf("PicoBoy Phase 1\n");
-  display_init();
-  audio_init();
-
-#ifdef PB_HAVE_EMBEDDED_ROM
-#ifdef PB_BOOT_BENCH
-  run_boot_bench();
-#endif
-  pb_core_config_t cfg = make_core_config();
-  pb_status_t st = pb_core_init(&g_core, &cfg);
-  if (st == PB_OK) {
-    g_running = true;
-    pb_pacer_init(&g_pacer);
-    printf("ROM: %u bytes, cart RAM needed: %u\n", (unsigned)cfg.rom_size,
-           (unsigned)pb_core_cart_ram_needed(&g_core));
-  } else {
-    g_error = "core init failed";
-    printf("pb_core_init failed: %d\n", (int)st);
-  }
-#else
-  g_error = "no ROM embedded (see tools/fetch_test_roms.sh)";
-  printf("%s\n", g_error);
-#endif
+void print_stats() {
+  const uint32_t elapsed_us = time_us() - g_window_start_us;
+  const uint32_t fps_x100 = (uint32_t)(((uint64_t)g_emulated * 100000000u) / elapsed_us);
+  const uint32_t refresh_x100 = (uint32_t)(((uint64_t)g_updates * 100000000u) / elapsed_us);
+  printf("bench updates=%u emulated=%u gb_fps=%u.%02u screen_hz=%u.%02u drawn=%u dropped=%u"
+         " est_nr=%u est_r=%u\n",
+         (unsigned)g_updates, (unsigned)g_emulated, (unsigned)(fps_x100 / 100),
+         (unsigned)(fps_x100 % 100), (unsigned)(refresh_x100 / 100),
+         (unsigned)(refresh_x100 % 100), (unsigned)g_drawn_updates, (unsigned)g_dropped,
+         (unsigned)g_cost_norender_us, (unsigned)g_cost_render_us);
+  printf("  emu_us    min=%u avg=%u max=%u\n", (unsigned)g_emu_us.min,
+         (unsigned)g_emu_us.avg(), (unsigned)g_emu_us.max);
+  printf("  update_us avg=%u max=%u | flip_us avg=%u max=%u | period_us avg=%u max=%u\n",
+         (unsigned)g_update_us.avg(), (unsigned)g_update_us.max,
+         (unsigned)g_flip_us.avg(), (unsigned)g_flip_us.max,
+         (unsigned)g_period_us.avg(), (unsigned)g_period_us.max);
+  printf("  blit_us   avg=%u max=%u\n", (unsigned)g_blit_us.avg(), (unsigned)g_blit_us.max);
+  uint32_t apu_avg = 0, apu_max = 0, apu_n = 0;
+  pb_core_take_apu_stats(&g_core, &apu_avg, &apu_max, &apu_n);
+  printf("  apu_us    avg=%u max=%u (frames=%u; part of emu_us)\n", (unsigned)apu_avg,
+         (unsigned)apu_max, (unsigned)apu_n);
+  const audio_stats_t au = audio_get_stats();
+  printf("  audio %s fill=%d underruns=%u overruns=%u drops=%u dups=%u\n",
+         audio_enabled() ? "on" : "muted", (int)au.fill, (unsigned)au.underruns,
+         (unsigned)au.overruns, (unsigned)au.drops, (unsigned)au.dups);
 }
 
-void update(uint32_t) {
-#ifdef PB_FLASH_TEST
-  flash_test_update();
-  return;
-#endif
-  if (!g_running) return;
+void update_game() {
   const uint32_t start = time_us();
   if (g_last_start_us) g_period_us.add(start - g_last_start_us);
   g_last_start_us = start;
   if (g_updates == 0) g_window_start_us = start;
 
   pb_core_set_buttons(&g_core, input_poll());
-  if (input_menu_requested()) printf("menu requested (menu not implemented yet)\n");
+  if (input_menu_requested()) {
+    if (g_from_launcher) {
+      back_to_launcher();
+      return;
+    }
+    printf("menu requested (no game list in this build)\n");
+  }
   if (input_mute_toggle_requested()) {
     audio_set_enabled(!audio_enabled());
     printf("audio %s\n", audio_enabled() ? "on" : "muted");
@@ -224,39 +267,74 @@ void update(uint32_t) {
   if (g_updates % 80 == 40) audio_print_diag();  // about every 3 s
 
   if (++g_updates == BENCH_UPDATES) {
-    const uint32_t elapsed_us = time_us() - g_window_start_us;
-    const uint32_t fps_x100 = (uint32_t)(((uint64_t)g_emulated * 100000000u) / elapsed_us);
-    const uint32_t refresh_x100 = (uint32_t)(((uint64_t)g_updates * 100000000u) / elapsed_us);
-    printf("bench updates=%u emulated=%u gb_fps=%u.%02u screen_hz=%u.%02u drawn=%u dropped=%u"
-           " est_nr=%u est_r=%u\n",
-           (unsigned)g_updates, (unsigned)g_emulated, (unsigned)(fps_x100 / 100),
-           (unsigned)(fps_x100 % 100), (unsigned)(refresh_x100 / 100),
-           (unsigned)(refresh_x100 % 100), (unsigned)g_drawn_updates, (unsigned)g_dropped,
-           (unsigned)g_cost_norender_us, (unsigned)g_cost_render_us);
-    printf("  emu_us    min=%u avg=%u max=%u\n", (unsigned)g_emu_us.min,
-           (unsigned)g_emu_us.avg(), (unsigned)g_emu_us.max);
-    printf("  update_us avg=%u max=%u | flip_us avg=%u max=%u | period_us avg=%u max=%u\n",
-           (unsigned)g_update_us.avg(), (unsigned)g_update_us.max,
-           (unsigned)g_flip_us.avg(), (unsigned)g_flip_us.max,
-           (unsigned)g_period_us.avg(), (unsigned)g_period_us.max);
-    printf("  blit_us   avg=%u max=%u\n", (unsigned)g_blit_us.avg(), (unsigned)g_blit_us.max);
-    uint32_t apu_avg = 0, apu_max = 0, apu_n = 0;
-    pb_core_take_apu_stats(&g_core, &apu_avg, &apu_max, &apu_n);
-    printf("  apu_us    avg=%u max=%u (frames=%u; part of emu_us)\n", (unsigned)apu_avg,
-           (unsigned)apu_max, (unsigned)apu_n);
-    const audio_stats_t au = audio_get_stats();
-    printf("  audio %s fill=%d underruns=%u overruns=%u drops=%u dups=%u\n",
-           audio_enabled() ? "on" : "muted", (int)au.fill, (unsigned)au.underruns,
-           (unsigned)au.overruns, (unsigned)au.drops, (unsigned)au.dups);
+    print_stats();
     g_emu_us.reset();
     g_update_us.reset();
     g_period_us.reset();
     g_flip_us.reset();
     g_blit_us.reset();
-    g_updates = 0;
-    g_emulated = 0;
-    g_drawn_updates = 0;
-    g_dropped = 0;
+    g_updates = g_emulated = g_drawn_updates = g_dropped = 0;
+  }
+}
+
+}  // namespace
+
+void init() {
+  stdio_init_all();
+#ifdef PB_FLASH_TEST
+  flash_test_init();  // test mode: inspect the flash instead of running the emulator
+  return;
+#endif
+  printf("PicoBoy\n");
+  display_init();
+  audio_init();
+
+#ifdef PB_HAVE_EMBEDDED_ROM
+  // Development build with a ROM built in: run it directly, no game list.
+#ifdef PB_BOOT_BENCH
+  run_boot_bench();
+#endif
+  g_from_launcher = false;
+  const uint32_t size = (uint32_t)(pb_embedded_rom_end - pb_embedded_rom);
+  const pb_status_t st = start_game(pb_embedded_rom, size, sizeof(g_cart_ram));
+  if (st != PB_OK) {
+    g_error = "core init failed";
+    g_mode = Mode::Error;
+    printf("pb_core_init failed: %d\n", (int)st);
+  }
+#else
+  g_from_launcher = true;
+  launcher_init(MAX_CART_RAM);
+  g_mode = Mode::Launcher;
+#endif
+}
+
+void update(uint32_t) {
+#ifdef PB_FLASH_TEST
+  flash_test_update();
+  return;
+#endif
+  switch (g_mode) {
+    case Mode::Launcher: {
+      pb_lib_entry_t e;
+      if (launcher_update(&e)) {
+        printf("starting \"%s\" (flash offset 0x%06x, %u bytes)\n", e.name, (unsigned)e.flash_offset,
+               (unsigned)e.size);
+        const pb_status_t st = start_game((const uint8_t *)(uintptr_t)pb_lib_entry_xip_address(&e), e.size, e.ram_size);
+        if (st != PB_OK) {
+          printf("the emulator refused this ROM: status %d\n", (int)st);
+          launcher_set_message(st == PB_ERR_UNSUPPORTED_CART ? "Emulator: cartridge not supported"
+                               : st == PB_ERR_BAD_HEADER     ? "Emulator: bad ROM header"
+                                                             : "Emulator could not start this game");
+        }
+      }
+      break;
+    }
+    case Mode::Game:
+      update_game();
+      break;
+    case Mode::Error:
+      break;
   }
 }
 
@@ -265,16 +343,27 @@ void draw(uint32_t) {
   flash_test_draw();
   return;
 #endif
-  if (!g_running) {
-    pen(0, 0, 0);
-    clear();
-    pen(15, 15, 15);
-    text("PicoBoy", 84, 100);
-    pen(15, 6, 6);
-    text(g_error ? g_error : "not running", 10, 120, 220);
-    return;
+  switch (g_mode) {
+    case Mode::Launcher:
+      launcher_draw();
+      break;
+    case Mode::Game: {
+      if (g_clear_on_next_draw) {  // after the list: remove its pixels from the borders
+        display_clear();
+        g_clear_on_next_draw = false;
+      }
+      const uint32_t t0 = time_us();
+      display_present();
+      g_blit_us.add(time_us() - t0);
+      break;
+    }
+    case Mode::Error:
+      pen(0, 0, 0);
+      clear();
+      pen(15, 15, 15);
+      text("PicoBoy", 84, 100);
+      pen(15, 6, 6);
+      text(g_error ? g_error : "not running", 10, 120, 220);
+      break;
   }
-  const uint32_t t0 = time_us();
-  display_present();
-  g_blit_us.add(time_us() - t0);
 }

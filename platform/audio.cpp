@@ -131,6 +131,13 @@ void audio_push(const int16_t *mono, uint32_t count) {
   }
 }
 
+void audio_reset() {
+  if (!g_ready) return;
+  clear_ring();
+  pb_async_init(&g_sync);
+  g_produced = consumed() + PB_ASYNC_TARGET;
+}
+
 void audio_set_enabled(bool on) { g_enabled = on; }
 bool audio_enabled() { return g_enabled; }
 

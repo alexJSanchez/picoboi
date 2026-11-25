@@ -17,6 +17,10 @@ void audio_init();
 // Queues the mono samples of one emulated frame (PB_AUDIO_SAMPLES_PER_FRAME of them).
 void audio_push(const int16_t *mono, uint32_t count);
 
+// Silences the speaker and restarts the buffering from scratch: call when a game ends or a new
+// one starts, otherwise the DMA would keep replaying the last buffered sound.
+void audio_reset();
+
 // Mute / unmute. While muted the speaker pin is held low.
 void audio_set_enabled(bool on);
 bool audio_enabled();

@@ -21,6 +21,11 @@ picosystem_executable(picoboy
   platform/audio.cpp
   platform/display.cpp
   platform/input.cpp
+  platform/ui.cpp
+  launcher/launcher.cpp
+  launcher/launcher_model.c
+  storage/crc32.c
+  storage/rom_library.c
   core/pb_core.c
   core/pb_pacer.c
   core/pb_audio_sync.c
@@ -29,15 +34,15 @@ picosystem_executable(picoboy
 # Own copy of the SDK's linker script: runs the emulator code from RAM (see ld/picoboy_memmap.ld).
 pico_set_linker_script(picoboy ${CMAKE_CURRENT_LIST_DIR}/ld/picoboy_memmap.ld)
 set_target_properties(picoboy PROPERTIES LINK_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/ld/picoboy_memmap.ld)
-target_include_directories(picoboy PRIVATE core platform third_party/peanut_gb
+target_include_directories(picoboy PRIVATE core platform launcher storage third_party/peanut_gb
   third_party/peanut_gb/examples/sdl2/minigb_apu)
 target_compile_definitions(picoboy PRIVATE MINIGB_APU_AUDIO_FORMAT_S16SYS=1)
 
-# Phase 1: embed a free test ROM (read in place via XIP). The ROM is downloaded by
-# tools/fetch_test_roms.sh into the untracked tests/roms/ and is never committed.
-# Without it the firmware still builds and shows a "no ROM embedded" message.
-set(PB_EMBED_ROM ${CMAKE_CURRENT_LIST_DIR}/tests/roms/cpu_instrs.gb CACHE FILEPATH "ROM to embed (Phase 1 only)")
-if(EXISTS ${PB_EMBED_ROM})
+# Development only: -DPB_EMBED_ROM=<file> builds a ROM into the firmware (read in place via XIP) and
+# runs it directly, skipping the game list; used for benchmarks and the tone build. The ROM is
+# never committed. By default nothing is embedded and the firmware boots to the game list.
+set(PB_EMBED_ROM "" CACHE FILEPATH "Development only: ROM to build into the firmware and run directly, skipping the game list")
+if(PB_EMBED_ROM AND EXISTS ${PB_EMBED_ROM})
   target_sources(picoboy PRIVATE src/embedded_rom.S)
   set_source_files_properties(src/embedded_rom.S PROPERTIES
     COMPILE_DEFINITIONS "PB_EMBED_ROM_PATH=\"${PB_EMBED_ROM}\""
@@ -45,7 +50,7 @@ if(EXISTS ${PB_EMBED_ROM})
   target_compile_definitions(picoboy PRIVATE PB_HAVE_EMBEDDED_ROM)
   message(STATUS "Embedding ROM: ${PB_EMBED_ROM}")
 else()
-  message(STATUS "No ROM to embed (run tools/fetch_test_roms.sh); building without one")
+  message(STATUS "No embedded ROM: this firmware boots to the game list (library from tools/pack_library.py)")
 endif()
 
 

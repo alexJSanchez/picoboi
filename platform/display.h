@@ -13,6 +13,10 @@ typedef enum {
 // Builds the DMG palette and clears the whole screen (border) to black.
 void display_init();
 
+// Clears the whole screen to black (the borders around the game picture). Call from draw(),
+// not from update(): update() may run while the SDK is still sending the previous picture.
+void display_clear();
+
 // Chooses how the picture is scaled; clears the screen so no old edges remain.
 void display_set_scale(display_scale_t scale);
 

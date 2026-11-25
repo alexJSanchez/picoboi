@@ -75,6 +75,8 @@ void display_init() {
   clear_screen();
 }
 
+void display_clear() { clear_screen(); }
+
 void display_set_scale(display_scale_t scale) {
   if (scale == g_scale) return;
   g_scale = scale;
